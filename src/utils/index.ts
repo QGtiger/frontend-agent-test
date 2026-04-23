@@ -1,5 +1,8 @@
 type AppConfig = {
   BASE_URL: string;
+  SERVER_API: string;
+  version: string;
+  appName: string;
 };
 
 export function getAppConfig(): AppConfig {

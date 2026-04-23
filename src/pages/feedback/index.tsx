@@ -1,4 +1,4 @@
-import { useRequest } from "ahooks";
+import { useState, useRef } from "react";
 import {
   Form,
   Input,
@@ -8,12 +8,14 @@ import {
   Tag,
   Typography,
   message,
-  Spin,
   Space,
   Collapse,
   Select,
+  Steps,
 } from "antd";
-import { apiRequest } from "@lightfish/server/api";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { getAppConfig } from "../../utils";
 
 const { TextArea } = Input;
 const { Title, Text, Paragraph } = Typography;
@@ -38,6 +40,14 @@ interface AnalyzeResult {
   total: number;
 }
 
+type ProgressStep =
+  | "idle"
+  | "token"
+  | "fetching"
+  | "analyzing"
+  | "done"
+  | "error";
+
 const DEFAULT_VALUES = {
   appId: "cli_a7a6ca3bf7dad00b",
   appSecret: "sZq2GflDZ0OVNhbqbNyhybeCfStGYoel",
@@ -50,6 +60,7 @@ const DEFAULT_VALUES = {
     "详细说明「现象、操作、问题」",
     "排查情况",
   ].join(","),
+  maxRecords: 100,
   apiKey: "sk-642c13edbffc4ca389da304aff0eb331",
   model: "deepseek-chat",
   systemPrompt:
@@ -58,21 +69,38 @@ const DEFAULT_VALUES = {
 
 export default function FeedbackPage() {
   const [form] = Form.useForm();
+  const [result, setResult] = useState<AnalyzeResult | null>(null);
+  const [progress, setProgress] = useState<ProgressStep>("idle");
+  const [fetchProgress, setFetchProgress] = useState({ page: 0, total: 0 });
+  const [errorMsg, setErrorMsg] = useState("");
+  const abortRef = useRef<AbortController | null>(null);
 
-  const {
-    run: handleAnalyze,
-    loading,
-    data: result,
-  } = useRequest(
-    async () => {
-      const values = await form.validateFields();
-      const res = await apiRequest<{
-        success: boolean;
-        data: AnalyzeResult;
-        message?: string;
-      }>("/api/feedback/analyze", {
+  const handleAnalyze = async () => {
+    try {
+      await form.validateFields();
+    } catch {
+      return;
+    }
+
+    // 重置状态
+    setResult(null);
+    setErrorMsg("");
+    setFetchProgress({ page: 0, total: 0 });
+
+    const values = form.getFieldsValue();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      const { SERVER_API, version, appName } = getAppConfig();
+      const response = await fetch(SERVER_API + "/api/feedback/analyze", {
         method: "POST",
-        data: {
+        headers: {
+          "Content-Type": "application/json",
+          "X-App-Name": appName,
+          "X-Version": version,
+        },
+        body: JSON.stringify({
           feishu: {
             appId: values.appId,
             appSecret: values.appSecret,
@@ -80,22 +108,81 @@ export default function FeedbackPage() {
             tableId: values.tableId,
             viewId: values.viewId || undefined,
             fieldNames: values.fieldNames || undefined,
+            maxRecords: values.maxRecords
+              ? Number(values.maxRecords)
+              : undefined,
           },
           deepseek: {
             apiKey: values.apiKey,
             model: values.model || "deepseek-chat",
           },
           systemPrompt: values.systemPrompt,
-        },
+        }),
+        signal: controller.signal,
       });
-      if (!res.success) {
-        throw new Error(res.message || "分析失败");
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("无法读取响应流");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        let currentEvent = "";
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith("data: ")) {
+            try {
+              const data = JSON.parse(line.slice(6));
+
+              if (currentEvent === "progress") {
+                if (data.step === "token") setProgress("token");
+                else if (data.step === "fetching") {
+                  setProgress("fetching");
+                  setFetchProgress({ page: data.page, total: data.total });
+                } else if (data.step === "analyzing") setProgress("analyzing");
+              } else if (currentEvent === "result") {
+                // 先设置统计和分析结果（数据量小），UI 立即更新
+                setResult((prev) => ({
+                  records: prev?.records || [],
+                  analysis: data.analysis,
+                  topIssues: data.topIssues,
+                  total: data.total,
+                }));
+                setProgress("done");
+                message.success(`分析完成，共获取 ${data.total} 条反馈`);
+              } else if (currentEvent === "records") {
+                // 分批累加 records
+                setResult((prev) =>
+                  prev ? { ...prev, records: [...prev.records, ...data] } : null
+                );
+              } else if (currentEvent === "error") {
+                setErrorMsg(data.message);
+                setProgress("error");
+                message.error(data.message);
+              }
+            } catch {
+              // JSON 解析失败，可能是跨 chunk 截断，忽略
+            }
+          }
+        }
       }
-      message.success(`分析完成，共获取 ${res.data.total} 条反馈`);
-      return res.data;
-    },
-    { manual: true }
-  );
+    } catch (err: any) {
+      if (err.name !== "AbortError") {
+        setErrorMsg(err.message);
+        setProgress("error");
+        message.error(err.message || "分析失败");
+      }
+    }
+  };
 
   const columns = [
     {
@@ -127,6 +214,15 @@ export default function FeedbackPage() {
         images?.length ? <Tag color="blue">{images.length} 张</Tag> : "-",
     },
   ];
+
+  const progressStepMap: Record<ProgressStep, number> = {
+    idle: 0,
+    token: 1,
+    fetching: 1,
+    analyzing: 2,
+    done: 3,
+    error: 3,
+  };
 
   return (
     <div style={{ display: "flex", height: "100vh" }}>
@@ -192,6 +288,9 @@ export default function FeedbackPage() {
                     >
                       <Input placeholder="可选，默认使用常见字段名" />
                     </Form.Item>
+                    <Form.Item name="maxRecords" label="最大拉取数量">
+                      <Input type="number" placeholder="0 表示不限制" />
+                    </Form.Item>
                   </>
                 ),
               },
@@ -243,23 +342,78 @@ export default function FeedbackPage() {
           <Button
             type="primary"
             onClick={handleAnalyze}
-            loading={loading}
+            loading={
+              progress !== "idle" && progress !== "done" && progress !== "error"
+            }
             block
             size="large"
             style={{ marginTop: 24 }}
           >
-            {loading ? "分析中..." : "🚀 同步并分析"}
+            {progress === "idle" && "🚀 同步并分析"}
+            {progress === "token" && "获取飞书授权中..."}
+            {progress === "fetching" &&
+              `拉取数据中 (第${fetchProgress.page}页)...`}
+            {progress === "analyzing" && "AI 分析中..."}
+            {(progress === "done" || progress === "error") && "🔄 重新分析"}
           </Button>
         </Form>
       </div>
 
       {/* 右侧结果面板 */}
       <div style={{ flex: 1, overflow: "auto", padding: 24 }}>
-        {loading ? (
-          <div style={{ textAlign: "center", paddingTop: 200 }}>
-            <Spin size="large" tip="正在从飞书拉取数据并调用 AI 分析..." />
-          </div>
-        ) : result ? (
+        {/* 进度条 */}
+        {progress !== "idle" && (
+          <Card style={{ marginBottom: 16 }}>
+            <Steps
+              current={progressStepMap[progress]}
+              status={progress === "error" ? "error" : "process"}
+              items={[
+                {
+                  title: "获取授权",
+                  description:
+                    progress === "token" ? "获取飞书 token..." : "完成",
+                },
+                {
+                  title: "拉取数据",
+                  description:
+                    progress === "fetching"
+                      ? `第 ${fetchProgress.page} 页，已获取 ${fetchProgress.total} 条`
+                      : progressStepMap[progress] > 1
+                      ? `共 ${fetchProgress.total} 条`
+                      : "等待中",
+                },
+                {
+                  title: "AI 分析",
+                  description:
+                    progress === "analyzing"
+                      ? "调用 DeepSeek 分析中..."
+                      : progressStepMap[progress] > 2
+                      ? "完成"
+                      : "等待中",
+                },
+                {
+                  title: "完成",
+                  description:
+                    progress === "done"
+                      ? "分析完成"
+                      : progress === "error"
+                      ? "分析出错"
+                      : "等待中",
+                },
+              ]}
+            />
+          </Card>
+        )}
+
+        {/* 错误信息 */}
+        {progress === "error" && (
+          <Card style={{ marginBottom: 16, borderColor: "#ff4d4f" }}>
+            <Text type="danger">{errorMsg}</Text>
+          </Card>
+        )}
+
+        {/* 结果展示 */}
+        {result ? (
           <div>
             {/* 统计信息 */}
             <Card style={{ marginBottom: 16 }}>
@@ -316,9 +470,185 @@ export default function FeedbackPage() {
                   key: "analysis",
                   label: "📝 AI 分析原文",
                   children: (
-                    <Paragraph style={{ whiteSpace: "pre-wrap", margin: 0 }}>
-                      {result.analysis}
-                    </Paragraph>
+                    <div
+                      style={{
+                        lineHeight: 1.8,
+                        fontSize: 14,
+                      }}
+                    >
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm as any]}
+                        components={{
+                          h1: ({ children }) => (
+                            <h1
+                              style={{
+                                fontSize: 22,
+                                fontWeight: 600,
+                                margin: "16px 0 8px",
+                              }}
+                            >
+                              {children}
+                            </h1>
+                          ),
+                          h2: ({ children }) => (
+                            <h2
+                              style={{
+                                fontSize: 18,
+                                fontWeight: 600,
+                                margin: "14px 0 6px",
+                              }}
+                            >
+                              {children}
+                            </h2>
+                          ),
+                          h3: ({ children }) => (
+                            <h3
+                              style={{
+                                fontSize: 16,
+                                fontWeight: 600,
+                                margin: "12px 0 4px",
+                              }}
+                            >
+                              {children}
+                            </h3>
+                          ),
+                          p: ({ children }) => (
+                            <p style={{ margin: "8px 0" }}>{children}</p>
+                          ),
+                          ul: ({ children }) => (
+                            <ul
+                              style={{
+                                paddingLeft: 24,
+                                margin: "8px 0",
+                                listStyle: "disc",
+                              }}
+                            >
+                              {children}
+                            </ul>
+                          ),
+                          ol: ({ children }) => (
+                            <ol
+                              style={{
+                                paddingLeft: 24,
+                                margin: "8px 0",
+                              }}
+                            >
+                              {children}
+                            </ol>
+                          ),
+                          li: ({ children }) => (
+                            <li style={{ margin: "4px 0" }}>{children}</li>
+                          ),
+                          code: ({ children, className }) => {
+                            const isInline = !className;
+                            return isInline ? (
+                              <code
+                                style={{
+                                  background: "#f5f5f5",
+                                  padding: "2px 6px",
+                                  borderRadius: 4,
+                                  fontSize: 13,
+                                  fontFamily:
+                                    'Menlo, Monaco, "Courier New", monospace',
+                                }}
+                              >
+                                {children}
+                              </code>
+                            ) : (
+                              <pre
+                                style={{
+                                  background: "#1e1e1e",
+                                  color: "#d4d4d4",
+                                  padding: 16,
+                                  borderRadius: 8,
+                                  overflow: "auto",
+                                  fontSize: 13,
+                                  lineHeight: 1.6,
+                                  margin: "12px 0",
+                                }}
+                              >
+                                <code>{children}</code>
+                              </pre>
+                            );
+                          },
+                          blockquote: ({ children }) => (
+                            <blockquote
+                              style={{
+                                borderLeft: "4px solid #1890ff",
+                                padding: "8px 16px",
+                                margin: "12px 0",
+                                background: "#f6f8fa",
+                                borderRadius: "0 4px 4px 0",
+                              }}
+                            >
+                              {children}
+                            </blockquote>
+                          ),
+                          table: ({ children }) => (
+                            <div style={{ overflow: "auto", margin: "12px 0" }}>
+                              <table
+                                style={{
+                                  borderCollapse: "collapse",
+                                  width: "100%",
+                                  fontSize: 13,
+                                }}
+                              >
+                                {children}
+                              </table>
+                            </div>
+                          ),
+                          th: ({ children }) => (
+                            <th
+                              style={{
+                                border: "1px solid #e8e8e8",
+                                padding: "8px 12px",
+                                background: "#fafafa",
+                                fontWeight: 600,
+                                textAlign: "left",
+                              }}
+                            >
+                              {children}
+                            </th>
+                          ),
+                          td: ({ children }) => (
+                            <td
+                              style={{
+                                border: "1px solid #e8e8e8",
+                                padding: "8px 12px",
+                              }}
+                            >
+                              {children}
+                            </td>
+                          ),
+                          hr: () => (
+                            <hr
+                              style={{
+                                border: "none",
+                                borderTop: "1px solid #e8e8e8",
+                                margin: "16px 0",
+                              }}
+                            />
+                          ),
+                          a: ({ href, children }) => (
+                            <a
+                              href={href}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ color: "#1890ff" }}
+                            >
+                              {children}
+                            </a>
+                          ),
+                          strong: ({ children }) => (
+                            <strong style={{ fontWeight: 600 }}>
+                              {children}
+                            </strong>
+                          ),
+                        }}
+                      >
+                        {result.analysis}
+                      </ReactMarkdown>
+                    </div>
                   ),
                 },
               ]}
@@ -368,7 +698,7 @@ export default function FeedbackPage() {
               />
             </Card>
           </div>
-        ) : (
+        ) : progress === "idle" ? (
           <div
             style={{
               textAlign: "center",
@@ -383,7 +713,7 @@ export default function FeedbackPage() {
               系统将从飞书多维表格拉取反馈数据，调用 DeepSeek AI 进行分析
             </Text>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
