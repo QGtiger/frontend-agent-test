@@ -68,7 +68,7 @@ export default async function analyzeFeedback(c: ContextWithDb) {
   }
   const token = tokenData.tenant_access_token;
 
-  // 2. 从飞书多维表格搜索记录
+  // 2. 从飞书多维表格搜索记录（全量拉取，处理分页）
   const fieldNames = body.feishu.fieldNames
     ? body.feishu.fieldNames
         .split(",")
@@ -81,40 +81,56 @@ export default async function analyzeFeedback(c: ContextWithDb) {
         "排查情况",
       ];
 
-  const searchUrl = new URL(
-    `https://open.feishu.cn/open-apis/bitable/v1/apps/${body.feishu.appToken}/tables/${body.feishu.tableId}/records/search`
-  );
-  searchUrl.searchParams.set("page_size", "100");
+  const allRecords: Array<{ record_id: string; fields: Record<string, any> }> =
+    [];
+  let pageToken: string | null = null;
 
-  const searchRes = await fetch(searchUrl.toString(), {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      automatic_fields: false,
-      field_names: fieldNames,
-      sort: [],
-      view_id: body.feishu.viewId || undefined,
-    }),
-  });
-  const searchData = (await searchRes.json()) as {
-    code: number;
-    msg: string;
-    data?: {
-      items: Array<{ record_id: string; fields: Record<string, any> }>;
-      total?: number;
+  do {
+    const searchUrl = new URL(
+      `https://open.feishu.cn/open-apis/bitable/v1/apps/${body.feishu.appToken}/tables/${body.feishu.tableId}/records/search`
+    );
+    searchUrl.searchParams.set("page_size", "500");
+
+    const searchRes = await fetch(searchUrl.toString(), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        automatic_fields: false,
+        field_names: fieldNames,
+        sort: [],
+        view_id: body.feishu.viewId || undefined,
+        page_token: pageToken,
+      }),
+    });
+    const searchData = (await searchRes.json()) as {
+      code: number;
+      msg: string;
+      data?: {
+        items: Array<{ record_id: string; fields: Record<string, any> }>;
+        total?: number;
+        has_more?: boolean;
+        page_token?: string;
+      };
     };
-  };
-  if (searchData.code !== 0) {
-    throw new Error(`飞书查询失败: ${searchData.msg}`);
-  }
+    if (searchData.code !== 0) {
+      throw new Error(`飞书查询失败: ${searchData.msg}`);
+    }
 
-  const records = searchData.data?.items || [];
-  if (records.length === 0) {
+    const items = searchData.data?.items || [];
+    allRecords.push(...items);
+    pageToken = searchData.data?.has_more
+      ? searchData.data?.page_token ?? null
+      : null;
+  } while (pageToken);
+
+  if (allRecords.length === 0) {
     return { records: [], analysis: "暂无反馈数据" };
   }
+
+  const records = allRecords;
 
   // 3. 构建分析内容
   const feedbackTexts = records
