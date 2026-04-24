@@ -191,13 +191,13 @@ export default async function analyzeFeedback(c: ContextWithDb) {
             const investigation = extractText(
               fields[fieldNames[3]] || fields["排查情况"]
             );
-            return `【反馈 ${i + 1}】\n描述: ${desc || "无"}\n详细说明: ${
-              detail || "无"
-            }\n排查情况: ${investigation || "无"}`;
+            return `【反馈 ${i + 1}】\nrecordId: ${r.record_id}\n描述: ${
+              desc || "无"
+            }\n详细说明: ${detail || "无"}\n排查情况: ${investigation || "无"}`;
           })
           .join("\n\n");
 
-        const userContent = `以下是用户反馈数据，共 ${allRecords.length} 条，请分析并提取出高频问题：\n\n${feedbackTexts}`;
+        const userContent = `以下是用户反馈数据，共 ${allRecords.length} 条，请分析下面这段数据\n\n${feedbackTexts}`;
 
         const aiRes = await fetch("https://api.deepseek.com/chat/completions", {
           method: "POST",
@@ -212,6 +212,7 @@ export default async function analyzeFeedback(c: ContextWithDb) {
               { role: "user", content: userContent },
             ],
             stream: false,
+            response_format: { type: "json_object" },
             temperature: 0.7,
             max_tokens: 4096,
           }),
@@ -224,29 +225,30 @@ export default async function analyzeFeedback(c: ContextWithDb) {
           throw new Error(`DeepSeek API 错误: ${aiData.error.message}`);
         }
 
-        const analysis = aiData.choices?.[0]?.message?.content || "";
+        const aiContent = aiData.choices?.[0]?.message?.content || "";
         log("DeepSeek 分析完成");
 
-        // === 阶段 4：解析结果 ===
+        // === 阶段 4：解析 JSON 结果 ===
+        let analysis = "";
         let topIssues: Array<{
           rank: number;
           title: string;
           count: number;
           description: string;
         }> = [];
+
         try {
-          const jsonMatch = analysis.match(/```json\n([\s\S]*?)\n```/);
-          if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[1]);
-            if (Array.isArray(parsed)) topIssues = parsed;
-            else if (parsed.topIssues) topIssues = parsed.topIssues;
-          }
+          const parsed = JSON.parse(aiContent);
+          analysis = parsed.analysis || aiContent;
+          topIssues = parsed.topIssues || [];
         } catch {
-          // 解析失败则只返回原始文本
+          // JSON 解析失败，直接使用原文
+          analysis = aiContent;
         }
 
-        const records = allRecords.map((r) => ({
+        const records = allRecords.map((r, idx) => ({
           recordId: r.record_id,
+          index: idx + 1,
           description: extractText(r.fields[fieldNames[0]]),
           detail: extractText(
             r.fields[fieldNames[2]] || r.fields["详细说明「现象、操作、问题」"]

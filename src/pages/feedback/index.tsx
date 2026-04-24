@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import {
   Form,
   Input,
@@ -12,16 +12,17 @@ import {
   Collapse,
   Select,
   Steps,
+  Modal,
 } from "antd";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { getAppConfig } from "../../utils";
+import MarkdownRenderer from "./MarkdownRenderer";
 
 const { TextArea } = Input;
 const { Title, Text, Paragraph } = Typography;
 
 interface FeedbackRecord {
   recordId: string;
+  index: number;
   description: string;
   detail: string;
   investigation: string;
@@ -63,8 +64,19 @@ const DEFAULT_VALUES = {
   maxRecords: 100,
   apiKey: "sk-642c13edbffc4ca389da304aff0eb331",
   model: "deepseek-chat",
-  systemPrompt:
-    "你是一个专业的用户反馈分析助手，请根据用户反馈数据分析出高频问题。",
+  systemPrompt: `你是一个专业的用户反馈分析助手。请根据用户反馈数据分析出高频问题，并以 JSON 格式返回。
+
+返回格式：
+{
+  "analysis": "完整的 Markdown 分析报告，包含问题分类、详细分析、改进建议等，引用具体反馈时，必须使用 [反馈N](record://recordId) 格式，其中 N 是反馈序号，recordId 是反馈的唯一标识",
+  "topIssues": [
+    { "rank": 1, "title": "问题标题", "count": 10, "description": "问题描述" }
+  ]
+}
+
+要求：
+1. analysis 字段用 Markdown 编写，内容详实，引用具体反馈时，必须使用 [反馈N](record://recordId) 格式，其中 N 是反馈序号，recordId 是反馈的唯一标识
+2. topIssues 按出现次数从高到低排序`,
 };
 
 export default function FeedbackPage() {
@@ -73,7 +85,21 @@ export default function FeedbackPage() {
   const [progress, setProgress] = useState<ProgressStep>("idle");
   const [fetchProgress, setFetchProgress] = useState({ page: 0, total: 0 });
   const [errorMsg, setErrorMsg] = useState("");
+  const [detailModal, setDetailModal] = useState<{
+    open: boolean;
+    record: FeedbackRecord | null;
+  }>({ open: false, record: null });
   const abortRef = useRef<AbortController | null>(null);
+
+  const handleRecordClick = useCallback(
+    (recordId: string) => {
+      const record = result?.records.find((r) => r.recordId === recordId);
+      if (record) {
+        setDetailModal({ open: true, record });
+      }
+    },
+    [result]
+  );
 
   const handleAnalyze = async () => {
     try {
@@ -470,185 +496,10 @@ export default function FeedbackPage() {
                   key: "analysis",
                   label: "📝 AI 分析原文",
                   children: (
-                    <div
-                      style={{
-                        lineHeight: 1.8,
-                        fontSize: 14,
-                      }}
-                    >
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm as any]}
-                        components={{
-                          h1: ({ children }) => (
-                            <h1
-                              style={{
-                                fontSize: 22,
-                                fontWeight: 600,
-                                margin: "16px 0 8px",
-                              }}
-                            >
-                              {children}
-                            </h1>
-                          ),
-                          h2: ({ children }) => (
-                            <h2
-                              style={{
-                                fontSize: 18,
-                                fontWeight: 600,
-                                margin: "14px 0 6px",
-                              }}
-                            >
-                              {children}
-                            </h2>
-                          ),
-                          h3: ({ children }) => (
-                            <h3
-                              style={{
-                                fontSize: 16,
-                                fontWeight: 600,
-                                margin: "12px 0 4px",
-                              }}
-                            >
-                              {children}
-                            </h3>
-                          ),
-                          p: ({ children }) => (
-                            <p style={{ margin: "8px 0" }}>{children}</p>
-                          ),
-                          ul: ({ children }) => (
-                            <ul
-                              style={{
-                                paddingLeft: 24,
-                                margin: "8px 0",
-                                listStyle: "disc",
-                              }}
-                            >
-                              {children}
-                            </ul>
-                          ),
-                          ol: ({ children }) => (
-                            <ol
-                              style={{
-                                paddingLeft: 24,
-                                margin: "8px 0",
-                              }}
-                            >
-                              {children}
-                            </ol>
-                          ),
-                          li: ({ children }) => (
-                            <li style={{ margin: "4px 0" }}>{children}</li>
-                          ),
-                          code: ({ children, className }) => {
-                            const isInline = !className;
-                            return isInline ? (
-                              <code
-                                style={{
-                                  background: "#f5f5f5",
-                                  padding: "2px 6px",
-                                  borderRadius: 4,
-                                  fontSize: 13,
-                                  fontFamily:
-                                    'Menlo, Monaco, "Courier New", monospace',
-                                }}
-                              >
-                                {children}
-                              </code>
-                            ) : (
-                              <pre
-                                style={{
-                                  background: "#1e1e1e",
-                                  color: "#d4d4d4",
-                                  padding: 16,
-                                  borderRadius: 8,
-                                  overflow: "auto",
-                                  fontSize: 13,
-                                  lineHeight: 1.6,
-                                  margin: "12px 0",
-                                }}
-                              >
-                                <code>{children}</code>
-                              </pre>
-                            );
-                          },
-                          blockquote: ({ children }) => (
-                            <blockquote
-                              style={{
-                                borderLeft: "4px solid #1890ff",
-                                padding: "8px 16px",
-                                margin: "12px 0",
-                                background: "#f6f8fa",
-                                borderRadius: "0 4px 4px 0",
-                              }}
-                            >
-                              {children}
-                            </blockquote>
-                          ),
-                          table: ({ children }) => (
-                            <div style={{ overflow: "auto", margin: "12px 0" }}>
-                              <table
-                                style={{
-                                  borderCollapse: "collapse",
-                                  width: "100%",
-                                  fontSize: 13,
-                                }}
-                              >
-                                {children}
-                              </table>
-                            </div>
-                          ),
-                          th: ({ children }) => (
-                            <th
-                              style={{
-                                border: "1px solid #e8e8e8",
-                                padding: "8px 12px",
-                                background: "#fafafa",
-                                fontWeight: 600,
-                                textAlign: "left",
-                              }}
-                            >
-                              {children}
-                            </th>
-                          ),
-                          td: ({ children }) => (
-                            <td
-                              style={{
-                                border: "1px solid #e8e8e8",
-                                padding: "8px 12px",
-                              }}
-                            >
-                              {children}
-                            </td>
-                          ),
-                          hr: () => (
-                            <hr
-                              style={{
-                                border: "none",
-                                borderTop: "1px solid #e8e8e8",
-                                margin: "16px 0",
-                              }}
-                            />
-                          ),
-                          a: ({ href, children }) => (
-                            <a
-                              href={href}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{ color: "#1890ff" }}
-                            >
-                              {children}
-                            </a>
-                          ),
-                          strong: ({ children }) => (
-                            <strong style={{ fontWeight: 600 }}>
-                              {children}
-                            </strong>
-                          ),
-                        }}
-                      >
-                        {result.analysis}
-                      </ReactMarkdown>
-                    </div>
+                    <MarkdownRenderer
+                      content={result.analysis}
+                      onRecordClick={handleRecordClick}
+                    />
                   ),
                 },
               ]}
@@ -715,6 +566,46 @@ export default function FeedbackPage() {
           </div>
         ) : null}
       </div>
+
+      {/* 反馈详情弹窗 */}
+      <Modal
+        title={`反馈详情 #${detailModal.record?.index}`}
+        open={detailModal.open}
+        onCancel={() => setDetailModal({ open: false, record: null })}
+        footer={null}
+        width={640}
+      >
+        {detailModal.record && (
+          <div>
+            <Paragraph>
+              <Text strong>描述：</Text>
+              <div>{detailModal.record.description || "无"}</div>
+            </Paragraph>
+            <Paragraph>
+              <Text strong>详细说明：</Text>
+              <div>{detailModal.record.detail || "无"}</div>
+            </Paragraph>
+            <Paragraph>
+              <Text strong>排查情况：</Text>
+              <div>{detailModal.record.investigation || "无"}</div>
+            </Paragraph>
+            {detailModal.record.images?.length > 0 && (
+              <Paragraph>
+                <Text strong>图片：</Text>
+                <div style={{ marginTop: 4 }}>
+                  {detailModal.record.images.map((img, idx) => (
+                    <div key={idx}>
+                      <a href={img.url} target="_blank" rel="noreferrer">
+                        {img.name || `图片 ${idx + 1}`}
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              </Paragraph>
+            )}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
