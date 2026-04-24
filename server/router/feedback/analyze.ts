@@ -3,7 +3,6 @@ import type { ContextWithDb } from "@lightfish/server";
 /**
  * POST /api/feedback/analyze
  * SSE 流式返回分析进度和结果。
- * 框架 toResponse 检测到 Response 实例会直接透传。
  *
  * 事件：
  *   progress  { step: "token" | "fetching" | "analyzing", page?, total? }
@@ -21,9 +20,12 @@ export default async function analyzeFeedback(c: ContextWithDb) {
       fieldNames?: string;
       maxRecords?: number;
     };
-    deepseek: {
-      apiKey: string;
-      model?: string;
+    ai: {
+      url: string;
+      headers: string;
+      channel: string;
+      model: string;
+      body: string;
     };
     systemPrompt: string;
   }>();
@@ -38,8 +40,8 @@ export default async function analyzeFeedback(c: ContextWithDb) {
       "飞书配置不完整，请填写 App ID、App Secret、App Token 和 Table ID"
     );
   }
-  if (!body.deepseek?.apiKey) {
-    throw new Error("请填写 DeepSeek API Key");
+  if (!body.ai?.url) {
+    throw new Error("请填写 AI API URL");
   }
   if (!body.systemPrompt) {
     throw new Error("请填写 System Prompt");
@@ -112,7 +114,7 @@ export default async function analyzeFeedback(c: ContextWithDb) {
           const searchUrl = new URL(
             `https://open.feishu.cn/open-apis/bitable/v1/apps/${body.feishu.appToken}/tables/${body.feishu.tableId}/records/search`
           );
-          searchUrl.searchParams.set("page_size", "50");
+          searchUrl.searchParams.set("page_size", "500");
 
           const searchRes = await fetch(searchUrl.toString(), {
             method: "POST",
@@ -177,8 +179,8 @@ export default async function analyzeFeedback(c: ContextWithDb) {
           return;
         }
 
-        // === 阶段 3：调用 DeepSeek 分析 ===
-        log("开始调用 DeepSeek 分析...");
+        // === 阶段 3：调用 AI 分析 ===
+        log("开始调用 AI 分析...");
         send("progress", { step: "analyzing" });
 
         const feedbackTexts = allRecords
@@ -199,34 +201,18 @@ export default async function analyzeFeedback(c: ContextWithDb) {
 
         const userContent = `以下是用户反馈数据，共 ${allRecords.length} 条，请分析下面这段数据\n\n${feedbackTexts}`;
 
-        const aiRes = await fetch("https://api.deepseek.com/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${body.deepseek.apiKey}`,
-          },
-          body: JSON.stringify({
-            model: body.deepseek.model || "deepseek-chat",
-            messages: [
-              { role: "system", content: body.systemPrompt },
-              { role: "user", content: userContent },
-            ],
-            stream: false,
-            response_format: { type: "json_object" },
-            temperature: 0.7,
-            max_tokens: 4096,
-          }),
+        const aiContent = await callAI({
+          url: body.ai.url,
+          headers: body.ai.headers,
+          channel: body.ai.channel,
+          model: body.ai.model,
+          body: body.ai.body,
+          systemPrompt: body.systemPrompt,
+          userContent,
+          log,
         });
-        const aiData = (await aiRes.json()) as {
-          choices?: Array<{ message?: { content?: string } }>;
-          error?: { message: string };
-        };
-        if (aiData.error) {
-          throw new Error(`DeepSeek API 错误: ${aiData.error.message}`);
-        }
 
-        const aiContent = aiData.choices?.[0]?.message?.content || "";
-        log("DeepSeek 分析完成");
+        log("AI 分析完成");
 
         // === 阶段 4：解析 JSON 结果 ===
         let analysis = "";
@@ -289,6 +275,144 @@ export default async function analyzeFeedback(c: ContextWithDb) {
       Connection: "keep-alive",
     },
   });
+}
+
+/**
+ * 调用 AI API
+ *
+ * 请求体完全由用户配置的 body 控制，只动态注入 messages 字段。
+ * 支持两种响应格式：
+ * 1. 标准 OpenAI 协议：{ choices: [{ message: { content } }] }
+ * 2. 内部 API 格式：{ code: 200, success: true, data: { choices: [{ message: { content } }] } }
+ */
+async function callAI(options: {
+  url: string;
+  headers: string;
+  channel: string;
+  model: string;
+  body: string;
+  systemPrompt: string;
+  userContent: string;
+  log: (msg: string, ...args: any[]) => void;
+}): Promise<string> {
+  const {
+    url,
+    headers: headersStr,
+    channel,
+    model,
+    body: bodyStr,
+    systemPrompt,
+    userContent,
+    log,
+  } = options;
+
+  // 解析自定义 headers（JSON 格式）
+  let extraHeaders: Record<string, string> = {};
+  if (headersStr) {
+    try {
+      extraHeaders = JSON.parse(headersStr);
+    } catch {
+      log("解析 AI Headers 失败，使用默认 headers");
+    }
+  }
+
+  // 构建请求体：以用户配置的 body 为基础，只注入 messages
+  let requestBody: Record<string, any> = {};
+
+  // 先解析用户配置的 body 作为基础
+  if (bodyStr) {
+    try {
+      requestBody = JSON.parse(bodyStr);
+    } catch {
+      log("解析 AI Body 失败，使用默认 body");
+    }
+  }
+
+  // 注入 messages（始终覆盖，因为这是动态生成的）
+  requestBody.messages = [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: userContent },
+  ];
+
+  // 如果 body 中没有 model，用配置的 model 兜底
+  if (!requestBody.model) {
+    requestBody.model = model || "deepseek-chat";
+  }
+
+  // 如果 body 中没有 channel，用配置的 channel 兜底
+  if (!requestBody.channel && channel) {
+    requestBody.channel = channel;
+  }
+
+  // 如果 body 中没有 stream，默认 false
+  if (requestBody.stream === undefined) {
+    requestBody.stream = false;
+  }
+
+  log("AI 请求 URL:", url);
+  log("AI 请求 Headers:", JSON.stringify(extraHeaders));
+  // 打印请求体（排除 messages，避免日志太长）
+  const logBody = { ...requestBody };
+  delete logBody.messages;
+  log("AI 请求 Body (不含 messages):", JSON.stringify(logBody));
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...extraHeaders,
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  log("AI 响应状态:", res.status, res.statusText);
+
+  const responseText = await res.text();
+  log("AI 响应原文:", responseText);
+
+  // 尝试解析 JSON
+  let data: any;
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    throw new Error(
+      `AI API 返回非 JSON 格式 (状态 ${res.status}): ${responseText.slice(
+        0,
+        500
+      )}`
+    );
+  }
+
+  // 判断是否为内部 API 格式（有 code/success/data 外层包装）
+  const isInternalApi = data.code !== undefined || data.success !== undefined;
+
+  if (isInternalApi) {
+    // 内部 API 格式：{ code: 200, success: true, data: { choices: [...] } }
+    if (data.code !== 200 || !data.success) {
+      throw new Error(
+        `AI API 业务错误: code=${data.code}, success=${data.success}, msg=${data.msg}`
+      );
+    }
+    if (!data.data?.choices?.[0]?.message?.content) {
+      throw new Error(
+        `AI API 返回格式异常: ${JSON.stringify(data).slice(0, 500)}`
+      );
+    }
+    return data.data.choices[0].message.content;
+  }
+
+  // 标准 OpenAI 协议格式：{ choices: [{ message: { content } }] }
+  if (data.error) {
+    throw new Error(`AI API 错误: ${JSON.stringify(data.error)}`);
+  }
+
+  if (!data.choices?.[0]?.message?.content) {
+    throw new Error(
+      `AI API 返回格式异常: ${JSON.stringify(data).slice(0, 500)}`
+    );
+  }
+
+  return data.choices[0].message.content;
 }
 
 function extractText(field: any): string {

@@ -1,3 +1,5 @@
+import { Navigate } from "react-router-dom";
+
 export default function Index() {
-  return <div>Index</div>;
+  return <Navigate to="/feedback" />;
 }

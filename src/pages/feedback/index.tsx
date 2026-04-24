@@ -10,9 +10,9 @@ import {
   message,
   Space,
   Collapse,
-  Select,
   Steps,
   Modal,
+  Select,
 } from "antd";
 import { getAppConfig } from "../../utils";
 import MarkdownRenderer from "./MarkdownRenderer";
@@ -49,6 +49,138 @@ type ProgressStep =
   | "done"
   | "error";
 
+const CHANNEL_OPTIONS = [
+  { label: "Azure", value: "azure" },
+  { label: "Ernie (文心)", value: "ernie" },
+  { label: "Sensenova (商汤)", value: "sensenova" },
+  { label: "SparkAI (讯飞)", value: "sparkai" },
+  { label: "Claude", value: "claude" },
+  { label: "Baichuan (百川)", value: "baichuan" },
+  { label: "Qwen (通义千问)", value: "qwen" },
+  { label: "ChatGLM (智谱)", value: "chatglm" },
+  { label: "Moonshot (月之暗面)", value: "moonshot" },
+  { label: "DeepSeek", value: "deepseek" },
+  { label: "Doubao (豆包)", value: "doubao" },
+  { label: "Gemini", value: "gemini" },
+  { label: "Morph", value: "morph" },
+  { label: "MiniMax", value: "minimax" },
+];
+
+const MODEL_OPTIONS: Record<string, string[]> = {
+  azure: [
+    "gpt-35",
+    "gpt-4",
+    "gpt-4o",
+    "gpt-4o-mini",
+    "o3-mini",
+    "gpt-4.1",
+    "gpt-4.1-mini",
+    "gpt-4.1-nano",
+    "o-mini",
+    "o3",
+    "gpt-5.2",
+  ],
+  ernie: ["ernie-lite-8k", "ernie-3.5", "ernie-speed-128k", "ernie-4"],
+  sensenova: ["nova-ptc-xl-v1", "nova-ptc-xs-v1", "SenseChat-5"],
+  sparkai: ["general", "generalv3.5", "pro-128k", "4.0Ultra"],
+  claude: [
+    "claude-v3-haiku",
+    "claude-v3.5-haiku",
+    "claude-v3.5-sonnet",
+    "claude-v3.7-sonnet",
+    "claude-sonnet-4",
+    "claude-opus-4",
+  ],
+  baichuan: [
+    "Baichuan2-Turbo",
+    "Baichuan2-Turbo-192k",
+    "Baichuan4",
+    "Baichuan3-Turbo",
+    "Baichuan3-Turbo-128k",
+  ],
+  qwen: [
+    "qwen-turbo",
+    "qwen-plus",
+    "qwen-max",
+    "qwen2.5-14b-instruct",
+    "qwen2.5-32b-instruct",
+    "qwen2.5-72b-instruct",
+    "qwq-plus",
+  ],
+  chatglm: [
+    "glm-3-turbo",
+    "glm-4",
+    "glm-4-long",
+    "glm-4-flash",
+    "glm-4.7",
+    "glm-4.6v",
+  ],
+  moonshot: [
+    "moonshot-v1-8k",
+    "moonshot-v1-32k",
+    "moonshot-v1-128k",
+    "kimi-k2",
+  ],
+  deepseek: ["deepseek-chat", "deepseek-reasoner"],
+  doubao: [
+    "Doubao-1.5-pro-256k",
+    "Doubao-1.5-vision-lite",
+    "Doubao-1.5-vision-pro",
+    "Doubao-1.5-thinking-pro",
+    "Doubao-1.5-lite-32k",
+    "Doubao-1-5-ui-tars",
+    "Doubao-seed-1.6",
+    "Doubao-seed-1.6-thinking",
+    "Doubao-seed-1.6-flash",
+    "Doubao-seed-1.8",
+  ],
+  gemini: [
+    "gemini-2.0-flash",
+    "gemini-2.5-pro",
+    "gemini-2.5-flash",
+    "gemini-3-flash",
+  ],
+  morph: ["morph-v2"],
+  minimax: ["MiniMax-M2.1"],
+};
+
+const AI_PROVIDER_OPTIONS = [
+  { label: "DeepSeek", value: "deepseek" },
+  { label: "内部 API", value: "internal" },
+];
+
+/** 各 AI 提供商的请求头和请求体（写死，用户不可配置） */
+const AI_PROVIDER_FIXED_CONFIG: Record<
+  string,
+  {
+    headers: Record<string, string>;
+    body: Record<string, any>;
+  }
+> = {
+  deepseek: {
+    headers: {
+      Authorization: "Bearer sk-642c13edbffc4ca389da304aff0eb331",
+    },
+    body: {},
+  },
+  internal: {
+    headers: {
+      "xybot-user": JSON.stringify({
+        organizationUuid: "your-org-uuid",
+        tenantUuid: "your-tenant-uuid",
+        uuid: "your-uuid",
+      }),
+    },
+    body: {
+      bizId: "274335384338436",
+      bizCode: "ai-power",
+      bizType: "ai_search",
+      temperature: 0.0,
+      timeout: 180,
+    },
+  },
+};
+
 const DEFAULT_VALUES = {
   appId: "cli_a7a6ca3bf7dad00b",
   appSecret: "sZq2GflDZ0OVNhbqbNyhybeCfStGYoel",
@@ -62,8 +194,10 @@ const DEFAULT_VALUES = {
     "排查情况",
   ].join(","),
   maxRecords: 100,
-  apiKey: "sk-642c13edbffc4ca389da304aff0eb331",
-  model: "deepseek-chat",
+  aiProvider: "deepseek",
+  aiUrl: "https://api.deepseek.com/chat/completions",
+  aiChannel: "deepseek",
+  aiModel: "deepseek-chat",
   systemPrompt: `你是一个专业的用户反馈分析助手。请根据用户反馈数据分析出高频问题，并以 JSON 格式返回。
 
 返回格式：
@@ -81,6 +215,9 @@ const DEFAULT_VALUES = {
 
 export default function FeedbackPage() {
   const [form] = Form.useForm();
+  const [selectedChannel, setSelectedChannel] = useState(
+    DEFAULT_VALUES.aiChannel
+  );
   const [result, setResult] = useState<AnalyzeResult | null>(null);
   const [progress, setProgress] = useState<ProgressStep>("idle");
   const [fetchProgress, setFetchProgress] = useState({ page: 0, total: 0 });
@@ -117,6 +254,11 @@ export default function FeedbackPage() {
     const controller = new AbortController();
     abortRef.current = controller;
 
+    // 根据选中的 AI 提供商获取写死的 headers 和 body
+    const provider = values.aiProvider || "deepseek";
+    const fixed =
+      AI_PROVIDER_FIXED_CONFIG[provider] || AI_PROVIDER_FIXED_CONFIG.deepseek;
+
     try {
       const { SERVER_API, version, appName } = getAppConfig();
       const response = await fetch(SERVER_API + "/api/feedback/analyze", {
@@ -138,9 +280,12 @@ export default function FeedbackPage() {
               ? Number(values.maxRecords)
               : undefined,
           },
-          deepseek: {
-            apiKey: values.apiKey,
-            model: values.model || "deepseek-chat",
+          ai: {
+            url: values.aiUrl,
+            headers: JSON.stringify(fixed.headers),
+            channel: values.aiChannel || "",
+            model: values.aiModel || "deepseek-chat",
+            body: JSON.stringify(fixed.body),
           },
           systemPrompt: values.systemPrompt,
         }),
@@ -176,7 +321,6 @@ export default function FeedbackPage() {
                   setFetchProgress({ page: data.page, total: data.total });
                 } else if (data.step === "analyzing") setProgress("analyzing");
               } else if (currentEvent === "result") {
-                // 先设置统计和分析结果（数据量小），UI 立即更新
                 setResult((prev) => ({
                   records: prev?.records || [],
                   analysis: data.analysis,
@@ -186,7 +330,6 @@ export default function FeedbackPage() {
                 setProgress("done");
                 message.success(`分析完成，共获取 ${data.total} 条反馈`);
               } else if (currentEvent === "records") {
-                // 分批累加 records
                 setResult((prev) =>
                   prev ? { ...prev, records: [...prev.records, ...data] } : null
                 );
@@ -269,7 +412,7 @@ export default function FeedbackPage() {
 
         <Form form={form} layout="vertical" initialValues={DEFAULT_VALUES}>
           <Collapse
-            defaultActiveKey={["feishu", "deepseek", "prompt"]}
+            defaultActiveKey={["feishu", "ai", "prompt"]}
             items={[
               {
                 key: "feishu",
@@ -321,26 +464,75 @@ export default function FeedbackPage() {
                 ),
               },
               {
-                key: "deepseek",
-                label: "DeepSeek 配置",
+                key: "ai",
+                label: "AI 平台配置",
                 children: (
                   <>
                     <Form.Item
-                      name="apiKey"
-                      label="API Key"
+                      name="aiProvider"
+                      label="AI 提供商"
+                      rules={[{ required: true, message: "必选" }]}
+                      tooltip="切换提供商时自动切换对应的请求头和请求体"
+                    >
+                      <Select
+                        options={AI_PROVIDER_OPTIONS}
+                        onChange={(val) => {
+                          // 切换提供商时自动更新 URL、channel、model 的默认值
+                          const defaults: Record<string, any> = {
+                            deepseek: {
+                              aiUrl:
+                                "https://api.deepseek.com/chat/completions",
+                              aiChannel: "deepseek",
+                              aiModel: "deepseek-chat",
+                            },
+                            internal: {
+                              aiUrl:
+                                "http://xybot-appreciation:8080/api/appreciation/v1/inner/completions/conversation",
+                              aiChannel: "qwen",
+                              aiModel: "qwen-turbo",
+                            },
+                          };
+                          const d = defaults[val];
+                          if (d) {
+                            form.setFieldsValue(d);
+                            setSelectedChannel(d.aiChannel);
+                          }
+                        }}
+                      />
+                    </Form.Item>
+                    <Form.Item
+                      name="aiUrl"
+                      label="API URL"
                       rules={[{ required: true, message: "必填" }]}
                     >
-                      <Input.Password placeholder="sk-xxxxxxxx" />
+                      <Input placeholder="https://api.deepseek.com/chat/completions" />
                     </Form.Item>
-                    <Form.Item name="model" label="模型">
+                    <Form.Item
+                      name="aiChannel"
+                      label="平台 (Channel)"
+                      tooltip="选择 AI 平台，channel 会通过请求体中的 channel 字段发送"
+                    >
                       <Select
-                        options={[
-                          { value: "deepseek-chat", label: "deepseek-chat" },
-                          {
-                            value: "deepseek-reasoner",
-                            label: "deepseek-reasoner",
-                          },
-                        ]}
+                        options={CHANNEL_OPTIONS}
+                        onChange={(val) => {
+                          setSelectedChannel(val);
+                          // 切换平台时自动设置第一个模型
+                          const models = MODEL_OPTIONS[val];
+                          if (models?.length) {
+                            form.setFieldValue("aiModel", models[0]);
+                          }
+                        }}
+                      />
+                    </Form.Item>
+                    <Form.Item
+                      name="aiModel"
+                      label="模型"
+                      rules={[{ required: true, message: "必填" }]}
+                    >
+                      <Select
+                        options={(MODEL_OPTIONS[selectedChannel] || []).map(
+                          (m) => ({ value: m, label: m })
+                        )}
                       />
                     </Form.Item>
                   </>
@@ -412,7 +604,7 @@ export default function FeedbackPage() {
                   title: "AI 分析",
                   description:
                     progress === "analyzing"
-                      ? "调用 DeepSeek 分析中..."
+                      ? "AI 分析中..."
                       : progressStepMap[progress] > 2
                       ? "完成"
                       : "等待中",
@@ -561,7 +753,7 @@ export default function FeedbackPage() {
               请在左侧填写配置后点击"同步并分析"
             </Title>
             <Text type="secondary">
-              系统将从飞书多维表格拉取反馈数据，调用 DeepSeek AI 进行分析
+              系统将从飞书多维表格拉取反馈数据，调用 AI 进行分析
             </Text>
           </div>
         ) : null}
