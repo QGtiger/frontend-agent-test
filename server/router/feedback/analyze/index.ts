@@ -1,5 +1,5 @@
 import type { ContextWithDb } from "@lightfish/server";
-import { analysisSessions } from "../../schema/index.js";
+import { analysisSessions } from "../../../schema/index.js";
 
 /**
  * POST /api/feedback/analyze
@@ -159,10 +159,18 @@ export default async function analyzeFeedback(c: ContextWithDb) {
 
         do {
           pageNum++;
+
+          // 计算本次需要拉取的数量：最多 500，但不能超过剩余需要的数量
+          const remaining =
+            maxRecords > 0 ? maxRecords - allRecords.length : 500;
+          const pageSize = Math.min(500, remaining);
+
+          if (pageSize <= 0) break;
+
           const searchUrl = new URL(
             `https://open.feishu.cn/open-apis/bitable/v1/apps/${body.feishu.appToken}/tables/${body.feishu.tableId}/records/search`
           );
-          searchUrl.searchParams.set("page_size", "500");
+          searchUrl.searchParams.set("page_size", String(pageSize));
 
           const searchRes = await fetch(searchUrl.toString(), {
             method: "POST",

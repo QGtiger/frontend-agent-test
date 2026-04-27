@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.1",
+    "@lightfish/server": "0.0.14",
     "@tailwindcss/vite": "^4.2.4",
     "ahooks": "^3.9.7",
     "antd": "6",
@@ -24,7 +25,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@lightfish/server": "^0.0.4",
     "@types/node": "^24.12.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
