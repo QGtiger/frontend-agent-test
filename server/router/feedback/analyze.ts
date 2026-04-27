@@ -223,11 +223,15 @@ export default async function analyzeFeedback(c: ContextWithDb) {
           description: string;
         }> = [];
 
-        try {
-          const parsed = JSON.parse(aiContent);
+        // 尝试从 AI 返回内容中提取 JSON
+        // AI 可能会在 Markdown 代码块中返回 JSON，如：
+        // 好的，分析如下...\n\n```json\n{\n  "analysis": "...",\n  "topIssues": [...]\n}\n```
+        // 也可能直接返回纯 JSON 字符串
+        const parsed = extractJsonFromContent(aiContent);
+        if (parsed) {
           analysis = parsed.analysis || aiContent;
           topIssues = parsed.topIssues || [];
-        } catch {
+        } else {
           // JSON 解析失败，直接使用原文
           analysis = aiContent;
         }
@@ -439,4 +443,69 @@ function extractImages(field: any): Array<{ url: string; name: string }> {
       url: item.url || item.tmp_url || "",
       name: item.name || "",
     }));
+}
+
+/**
+ * 从 AI 返回内容中提取 JSON 对象。
+ *
+ * AI 有时会在 Markdown 代码块中返回 JSON，例如：
+ *   好的，分析如下...\n\n```json\n{\n  "analysis": "...",\n  "topIssues": [...]\n}\n```
+ * 也可能直接返回纯 JSON 字符串，或者 JSON 前面/后面有额外文本。
+ *
+ * 此函数会依次尝试：
+ * 1. 提取 ```json ... ``` 代码块中的 JSON
+ * 2. 提取 ``` ... ``` 代码块中的 JSON
+ * 3. 直接对整个内容尝试 JSON.parse
+ * 4. 尝试从内容中查找第一个 { 到最后一个 } 之间的子串
+ */
+function extractJsonFromContent(content: string): {
+  analysis?: string;
+  topIssues?: Array<{
+    rank: number;
+    title: string;
+    count: number;
+    description: string;
+  }>;
+} | null {
+  if (!content) return null;
+
+  // 尝试 1：提取 ```json ... ``` 代码块
+  const jsonBlockMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
+  if (jsonBlockMatch) {
+    try {
+      return JSON.parse(jsonBlockMatch[1].trim());
+    } catch {
+      // 继续尝试其他方式
+    }
+  }
+
+  // 尝试 2：提取 ``` ... ``` 代码块（没有 json 标记）
+  const codeBlockMatch = content.match(/```\s*([\s\S]*?)\s*```/);
+  if (codeBlockMatch) {
+    try {
+      return JSON.parse(codeBlockMatch[1].trim());
+    } catch {
+      // 继续尝试其他方式
+    }
+  }
+
+  // 尝试 3：直接对整个内容尝试 JSON.parse
+  try {
+    return JSON.parse(content.trim());
+  } catch {
+    // 继续尝试其他方式
+  }
+
+  // 尝试 4：从内容中查找第一个 { 到最后一个 } 之间的子串
+  const firstBrace = content.indexOf("{");
+  const lastBrace = content.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    try {
+      return JSON.parse(content.slice(firstBrace, lastBrace + 1));
+    } catch {
+      // 无法解析
+    }
+  }
+
+  return null;
 }
