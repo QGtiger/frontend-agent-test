@@ -17,10 +17,12 @@ export interface TopIssue {
   title: string;
   count: number;
   description: string;
+  /** 对应不多于五个的具有代表性的记录 ID */
+  recordIds: string[];
 }
 
 export interface AnalyzeResultData {
-  records: FeedbackRecord[];
+  records?: FeedbackRecord[];
   analysis: string;
   topIssues: TopIssue[];
   total: number;
@@ -28,7 +30,7 @@ export interface AnalyzeResultData {
 
 interface AnalyzeResultProps {
   result: AnalyzeResultData;
-  onRecordClick?: (recordId: string) => void;
+  onRecordClick?: (recordId: string, record?: FeedbackRecord) => void;
 }
 
 const recordColumns = [
@@ -66,6 +68,11 @@ export default function AnalyzeResult({
   result,
   onRecordClick,
 }: AnalyzeResultProps) {
+  const handleRecordClick = (recordId: string) => {
+    console.log("handleRecordClick", recordId, result);
+    const record = result.records?.find((r) => r.recordId === recordId);
+    onRecordClick?.(recordId, record);
+  };
   return (
     <div>
       {/* 统计信息 */}
@@ -106,6 +113,31 @@ export default function AnalyzeResult({
                 dataIndex: "description",
                 key: "description",
               },
+              {
+                title: "代表性反馈",
+                dataIndex: "recordIds",
+                key: "recordIds",
+                width: 200,
+                render: (recordIds: string[]) =>
+                  recordIds?.length > 0 ? (
+                    <Space wrap size={4}>
+                      {recordIds.map((id) => (
+                        <Tag
+                          key={id}
+                          color="geekblue"
+                          style={{
+                            cursor: onRecordClick ? "pointer" : "default",
+                          }}
+                          onClick={() => handleRecordClick(id)}
+                        >
+                          {id.slice(0, 8)}...
+                        </Tag>
+                      ))}
+                    </Space>
+                  ) : (
+                    "-"
+                  ),
+              },
             ]}
             rowKey="rank"
             pagination={false}
@@ -123,7 +155,7 @@ export default function AnalyzeResult({
             children: (
               <MarkdownRenderer
                 content={result.analysis}
-                onRecordClick={onRecordClick}
+                onRecordClick={handleRecordClick}
               />
             ),
           },
@@ -131,44 +163,46 @@ export default function AnalyzeResult({
         style={{ marginBottom: 16 }}
       />
 
-      {/* 反馈列表 */}
-      <Card title="📋 反馈列表">
-        <Table
-          dataSource={result.records}
-          columns={recordColumns}
-          rowKey="recordId"
-          size="small"
-          pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }}
-          expandable={{
-            expandedRowRender: (record) => (
-              <div style={{ padding: "8px 0" }}>
-                <Text strong>详细说明：</Text>
-                <Paragraph>{record.detail || "无"}</Paragraph>
-                <Text strong>排查情况：</Text>
-                <Paragraph>{record.investigation || "无"}</Paragraph>
-                {record.images?.length > 0 && (
-                  <>
-                    <Text strong>图片：</Text>
-                    <div style={{ marginTop: 4 }}>
-                      {record.images.map((img, idx) => (
-                        <div key={idx}>
-                          <a href={img.url} target="_blank" rel="noreferrer">
-                            {img.name || `图片 ${idx + 1}`}
-                          </a>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            ),
-            rowExpandable: (record) =>
-              !!record.detail ||
-              !!record.investigation ||
-              record.images?.length > 0,
-          }}
-        />
-      </Card>
+      {/* 反馈列表（仅在 records 存在时展示） */}
+      {result.records && (
+        <Card title="📋 反馈列表">
+          <Table
+            dataSource={result.records}
+            columns={recordColumns}
+            rowKey="recordId"
+            size="small"
+            pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }}
+            expandable={{
+              expandedRowRender: (record) => (
+                <div style={{ padding: "8px 0" }}>
+                  <Text strong>详细说明：</Text>
+                  <Paragraph>{record.detail || "无"}</Paragraph>
+                  <Text strong>排查情况：</Text>
+                  <Paragraph>{record.investigation || "无"}</Paragraph>
+                  {record.images?.length > 0 && (
+                    <>
+                      <Text strong>图片：</Text>
+                      <div style={{ marginTop: 4 }}>
+                        {record.images.map((img, idx) => (
+                          <div key={idx}>
+                            <a href={img.url} target="_blank" rel="noreferrer">
+                              {img.name || `图片 ${idx + 1}`}
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ),
+              rowExpandable: (record) =>
+                !!record.detail ||
+                !!record.investigation ||
+                record.images?.length > 0,
+            }}
+          />
+        </Card>
+      )}
     </div>
   );
 }

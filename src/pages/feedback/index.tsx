@@ -166,14 +166,8 @@ const DEFAULT_VALUES = {
   appToken: "GhgNbqLihaYvs8sUtmkc9MZdnPc",
   tableId: "tblMqq16QOGraL2C",
   viewId: "vewQpaj4oq",
-  fieldNames: [
-    "描述(人、操作、现象)",
-    "上传相关图片/GIF",
-    "详细说明「现象、操作、问题」",
-    "排查情况",
-  ].join(","),
   maxRecords: 100,
-  aiProvider: "deepseek",
+  aiProvider: "internal",
   aiUrl: "https://api.deepseek.com/chat/completions",
   aiChannel: "deepseek",
   aiModel: "deepseek-chat",
@@ -254,7 +248,6 @@ export default function FeedbackPage() {
             appToken: values.appToken,
             tableId: values.tableId,
             viewId: values.viewId || undefined,
-            fieldNames: values.fieldNames || undefined,
             maxRecords: values.maxRecords
               ? Number(values.maxRecords)
               : undefined,
@@ -397,13 +390,6 @@ export default function FeedbackPage() {
                     </Form.Item>
                     <Form.Item name="viewId" label="View ID">
                       <Input placeholder="vewxxxxxxxx（可选）" />
-                    </Form.Item>
-                    <Form.Item
-                      name="fieldNames"
-                      label="字段名（逗号分隔）"
-                      tooltip="默认：描述(人、操作、现象),上传相关图片/GIF,详细说明「现象、操作、问题」,排查情况"
-                    >
-                      <Input placeholder="可选，默认使用常见字段名" />
                     </Form.Item>
                     <Form.Item name="maxRecords" label="最大拉取数量">
                       <Input type="number" placeholder="0 表示不限制" />

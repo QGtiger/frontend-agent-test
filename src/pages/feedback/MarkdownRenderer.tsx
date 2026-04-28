@@ -1,6 +1,5 @@
-import { useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { useState, useMemo } from "react";
+import { marked } from "marked";
 import { Button, Space } from "antd";
 
 interface MarkdownRendererProps {
@@ -8,18 +7,49 @@ interface MarkdownRendererProps {
   onRecordClick?: (recordId: string) => void;
 }
 
+export type { MarkdownRendererProps };
+
+// 配置 marked 支持 GFM（默认已支持）
+marked.setOptions({
+  gfm: true,
+  breaks: true,
+});
+
 export default function MarkdownRenderer({
   content,
   onRecordClick,
 }: MarkdownRendererProps) {
   const [showRaw, setShowRaw] = useState(false);
 
-  // 在渲染前将 [反馈N](record://recordId) 替换为 http://record/recordId 格式
-  // remark-gfm 会丢弃 record:// 这种非标准协议，所以用 http://record/ 代替
-  const processedContent = content.replace(
-    /\[([^\]]+)\]\(record:\/\/([^)]+)\)/g,
-    "[$1](http://record/$2)"
-  );
+  // 预处理：将 [反馈N](record://recordId) 替换为带特殊标记的链接
+  // 使用 data-record-id 属性标记，后续在渲染后通过 DOM 操作绑定点击事件
+  const processedContent = useMemo(() => {
+    // 先替换 record:// 链接为带 data 属性的 HTML
+    let html = content.replace(
+      /\[([^\]]+)\]\(record:\/\/([^)]+)\)/g,
+      (_, text, recordId) => {
+        return `<a href="#" data-record-id="${recordId}" class="record-link">${text}</a>`;
+      }
+    );
+
+    // 使用 marked 渲染 Markdown 为 HTML
+    html = marked.parse(html, { async: false }) as string;
+
+    return html;
+  }, [content]);
+
+  // 渲染后绑定点击事件
+  const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    const recordLink = target.closest("a[data-record-id]");
+    if (recordLink) {
+      e.preventDefault();
+      const recordId = recordLink.getAttribute("data-record-id");
+      if (recordId) {
+        onRecordClick?.(recordId);
+      }
+    }
+  };
 
   return (
     <div>
@@ -61,204 +91,95 @@ export default function MarkdownRenderer({
         </pre>
       ) : (
         <div
+          className="markdown-content"
+          onClick={handleContainerClick}
           style={{
             lineHeight: 1.8,
             fontSize: 14,
           }}
-        >
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm as any]}
-            components={{
-              h1: ({ children }) => (
-                <h1
-                  style={{
-                    fontSize: 22,
-                    fontWeight: 600,
-                    margin: "16px 0 8px",
-                  }}
-                >
-                  {children}
-                </h1>
-              ),
-              h2: ({ children }) => (
-                <h2
-                  style={{
-                    fontSize: 18,
-                    fontWeight: 600,
-                    margin: "14px 0 6px",
-                  }}
-                >
-                  {children}
-                </h2>
-              ),
-              h3: ({ children }) => (
-                <h3
-                  style={{
-                    fontSize: 16,
-                    fontWeight: 600,
-                    margin: "12px 0 4px",
-                  }}
-                >
-                  {children}
-                </h3>
-              ),
-              p: ({ children }) => (
-                <p style={{ margin: "8px 0" }}>{children}</p>
-              ),
-              ul: ({ children }) => (
-                <ul
-                  style={{
-                    paddingLeft: 24,
-                    margin: "8px 0",
-                    listStyle: "disc",
-                  }}
-                >
-                  {children}
-                </ul>
-              ),
-              ol: ({ children }) => (
-                <ol
-                  style={{
-                    paddingLeft: 24,
-                    margin: "8px 0",
-                  }}
-                >
-                  {children}
-                </ol>
-              ),
-              li: ({ children }) => (
-                <li style={{ margin: "4px 0" }}>{children}</li>
-              ),
-              code: ({ children, className }) => {
-                const isInline = !className;
-                return isInline ? (
-                  <code
-                    style={{
-                      background: "#f5f5f5",
-                      padding: "2px 6px",
-                      borderRadius: 4,
-                      fontSize: 13,
-                      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-                    }}
-                  >
-                    {children}
-                  </code>
-                ) : (
-                  <pre
-                    style={{
-                      background: "#1e1e1e",
-                      color: "#d4d4d4",
-                      padding: 16,
-                      borderRadius: 8,
-                      overflow: "auto",
-                      fontSize: 13,
-                      lineHeight: 1.6,
-                      margin: "12px 0",
-                    }}
-                  >
-                    <code>{children}</code>
-                  </pre>
-                );
-              },
-              blockquote: ({ children }) => (
-                <blockquote
-                  style={{
-                    borderLeft: "4px solid #1890ff",
-                    padding: "8px 16px",
-                    margin: "12px 0",
-                    background: "#f6f8fa",
-                    borderRadius: "0 4px 4px 0",
-                  }}
-                >
-                  {children}
-                </blockquote>
-              ),
-              table: ({ children }) => (
-                <div style={{ overflow: "auto", margin: "12px 0" }}>
-                  <table
-                    style={{
-                      borderCollapse: "collapse",
-                      width: "100%",
-                      fontSize: 13,
-                    }}
-                  >
-                    {children}
-                  </table>
-                </div>
-              ),
-              th: ({ children }) => (
-                <th
-                  style={{
-                    border: "1px solid #e8e8e8",
-                    padding: "8px 12px",
-                    background: "#fafafa",
-                    fontWeight: 600,
-                    textAlign: "left",
-                  }}
-                >
-                  {children}
-                </th>
-              ),
-              td: ({ children }) => (
-                <td
-                  style={{
-                    border: "1px solid #e8e8e8",
-                    padding: "8px 12px",
-                  }}
-                >
-                  {children}
-                </td>
-              ),
-              hr: () => (
-                <hr
-                  style={{
-                    border: "none",
-                    borderTop: "1px solid #e8e8e8",
-                    margin: "16px 0",
-                  }}
-                />
-              ),
-              a: ({ href, children }) => {
-                // 拦截 http://record/recordId 格式，渲染为可点击的反馈链接
-                if (href?.startsWith("http://record/")) {
-                  const recordId = href.slice(14);
-                  return (
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        onRecordClick?.(recordId);
-                      }}
-                      style={{
-                        color: "#1890ff",
-                        textDecoration: "underline",
-                        cursor: "pointer",
-                      }}
-                    >
-                      {children}
-                    </a>
-                  );
-                }
-                return (
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ color: "#1890ff" }}
-                  >
-                    {children}
-                  </a>
-                );
-              },
-              strong: ({ children }) => (
-                <strong style={{ fontWeight: 600 }}>{children}</strong>
-              ),
-            }}
-          >
-            {processedContent}
-          </ReactMarkdown>
-        </div>
+          dangerouslySetInnerHTML={{ __html: processedContent }}
+        />
       )}
+
+      {/* 注入样式 */}
+      <style>{`
+        .markdown-content h1 { font-size: 22px; font-weight: 600; margin: 16px 0 8px; }
+        .markdown-content h2 { font-size: 18px; font-weight: 600; margin: 14px 0 6px; }
+        .markdown-content h3 { font-size: 16px; font-weight: 600; margin: 12px 0 4px; }
+        .markdown-content p { margin: 8px 0; }
+        .markdown-content ul, .markdown-content ol { padding-left: 24px; margin: 8px 0; }
+        .markdown-content ul { list-style: disc; }
+        .markdown-content li { margin: 4px 0; }
+        .markdown-content code {
+          background: #f5f5f5;
+          padding: 2px 6px;
+          border-radius: 4px;
+          font-size: 13px;
+          font-family: Menlo, Monaco, "Courier New", monospace;
+        }
+        .markdown-content pre {
+          background: #1e1e1e;
+          color: #d4d4d4;
+          padding: 16px;
+          border-radius: 8px;
+          overflow: auto;
+          font-size: 13px;
+          line-height: 1.6;
+          margin: 12px 0;
+        }
+        .markdown-content pre code {
+          background: none;
+          padding: 0;
+          border-radius: 0;
+        }
+        .markdown-content blockquote {
+          border-left: 4px solid #1890ff;
+          padding: 8px 16px;
+          margin: 12px 0;
+          background: #f6f8fa;
+          border-radius: 0 4px 4px 0;
+        }
+        .markdown-content table {
+          border-collapse: collapse;
+          width: 100%;
+          font-size: 13px;
+          margin: 12px 0;
+        }
+        .markdown-content th {
+          border: 1px solid #e8e8e8;
+          padding: 8px 12px;
+          background: #fafafa;
+          font-weight: 600;
+          text-align: left;
+        }
+        .markdown-content td {
+          border: 1px solid #e8e8e8;
+          padding: 8px 12px;
+        }
+        .markdown-content hr {
+          border: none;
+          border-top: 1px solid #e8e8e8;
+          margin: 16px 0;
+        }
+        .markdown-content a {
+          color: #1890ff;
+        }
+        .markdown-content a.record-link {
+          color: #1890ff;
+          text-decoration: underline;
+          cursor: pointer;
+        }
+        .markdown-content a.record-link:hover {
+          color: #40a9ff;
+        }
+        .markdown-content strong {
+          font-weight: 600;
+        }
+        .markdown-content table {
+          display: block;
+          overflow-x: auto;
+        }
+      `}</style>
     </div>
   );
 }
