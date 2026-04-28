@@ -17,6 +17,7 @@ import {
   Spin,
 } from "antd";
 import { InboxOutlined } from "@ant-design/icons";
+import { apiRequest } from "@lightfish/server/api";
 import { getAppConfig } from "../../../utils";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
@@ -140,30 +141,22 @@ export default function FeedbackExportPage() {
     const values = form.getFieldsValue();
 
     try {
-      const { SERVER_API, version, appName } = getAppConfig();
-      const response = await fetch(SERVER_API + "/api/feedback/export", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-App-Name": appName,
-          "X-Version": version,
-        },
-        body: JSON.stringify({
-          appId: values.appId,
-          appSecret: values.appSecret,
-          appToken: values.appToken,
-          tableId: values.tableId,
-          viewId: values.viewId || undefined,
-          maxRecords: values.maxRecords ? Number(values.maxRecords) : undefined,
-        }),
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.message || `请求失败 (${response.status})`);
-      }
-
-      const json = await response.json();
+      const json = await apiRequest<{ success: boolean; data: any }>(
+        "/feedback/export",
+        {
+          method: "POST",
+          data: {
+            appId: values.appId,
+            appSecret: values.appSecret,
+            appToken: values.appToken,
+            tableId: values.tableId,
+            viewId: values.viewId || undefined,
+            maxRecords: values.maxRecords
+              ? Number(values.maxRecords)
+              : undefined,
+          },
+        }
+      );
       // @lightfish/server 框架会自动包装为 { success: true, data: ... }
       const resultData = json.data || json;
       const records: FeedbackRecord[] = resultData.records || [];
@@ -312,7 +305,6 @@ export default function FeedbackExportPage() {
     // 有飞书图片，先转存再打开 Drawer
     setConvertingImages(true);
     const values = form.getFieldsValue();
-    const { SERVER_API } = getAppConfig();
 
     const convertedImages = [...expandedImages];
     let hasError = false;
@@ -327,29 +319,19 @@ export default function FeedbackExportPage() {
       }
 
       try {
-        const res = await fetch(
-          SERVER_API + "/api/feedback/export/image-proxy",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              url: img.url,
-              name: img.name,
-              appId: values.appId,
-              appSecret: values.appSecret,
-            }),
-          }
-        );
-
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          console.warn(`图片转存失败: ${img.name}`, errData);
-          hasError = true;
-          continue;
-        }
-
-        const result = await res.json();
-        const data = result.data || result;
+        const result = await apiRequest<{
+          success: boolean;
+          data: { url: string };
+        }>("/feedback/export/image-proxy", {
+          method: "POST",
+          data: {
+            url: img.url,
+            name: img.name,
+            appId: values.appId,
+            appSecret: values.appSecret,
+          },
+        });
+        const data = (result as any).data || result;
         convertedImages[i] = { ...img, url: data.url };
       } catch (err) {
         console.warn(`图片转存异常: ${img.name}`, err);
