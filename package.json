@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:online": "vite build && lightfish-server build && lightfish-server db push"
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.1",
