@@ -25,6 +25,7 @@ import AnalyzeResult, {
   type FeedbackRecord,
 } from "../components/AnalyzeResult";
 import { hideLoading, showLoading } from "../../../utils/loading";
+import MarkdownRenderer from "../MarkdownRenderer";
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -59,6 +60,71 @@ export default function FeedbackExportPage() {
     null
   );
   const [convertingImages, setConvertingImages] = useState(false);
+
+  // 知识库查询结果缓存：recordId -> text
+  const [kbResults, setKbResults] = useState<Record<string, string>>({});
+  const [kbLoading, setKbLoading] = useState(false);
+
+  const handleKBQuery = async () => {
+    if (!selectedRecord) return;
+
+    const recordId = selectedRecord.recordId;
+    // 如果已有缓存，直接展示
+    if (kbResults[recordId]) return;
+
+    const parts: string[] = [];
+    if (selectedRecord.description) {
+      parts.push(`描述(人、操作、现象)：${selectedRecord.description}`);
+    }
+    if (selectedRecord.detail) {
+      parts.push(`详细说明「现象、操作、问题」：${selectedRecord.detail}`);
+    }
+    if (selectedRecord.investigation) {
+      parts.push(`排查情况：${selectedRecord.investigation}`);
+    }
+    if (selectedRecord.images?.length > 0) {
+      const imageInfo = selectedRecord.images
+        .map((img) => `[图片] ${img.name}: ${img.url}`)
+        .join("\n");
+      parts.push(`相关图片：\n${imageInfo}`);
+    }
+    const content = parts.join("\n\n");
+    if (!content) {
+      message.warning("没有可查询的内容");
+      return;
+    }
+
+    setKbLoading(true);
+    try {
+      const res = await fetch(
+        "https://test-yddoc.yingdao.com/api/agents/rpaQaAgent/generate",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Cookie: "tgw_l7_route=7c8ae90f48839c29750e1ccc76081893",
+          },
+          body: JSON.stringify({
+            messages: [{ role: "user", content }],
+          }),
+        }
+      );
+
+      if (!res.ok) {
+        throw new Error(`请求失败 (${res.status})`);
+      }
+
+      const result = await res.json();
+      setKbResults((prev) => ({
+        ...prev,
+        [recordId]: result.text || "无返回结果",
+      }));
+    } catch (err: any) {
+      message.error("知识库查询失败: " + err.message);
+    } finally {
+      setKbLoading(false);
+    }
+  };
 
   const handleExport = async () => {
     try {
@@ -627,6 +693,30 @@ export default function FeedbackExportPage() {
                   )}
                 </Descriptions.Item>
               </Descriptions>
+
+              {/* 知识库查询区域 */}
+              <div style={{ marginTop: 24 }}>
+                <Button
+                  type="primary"
+                  icon={<InboxOutlined />}
+                  onClick={handleKBQuery}
+                  loading={kbLoading}
+                >
+                  🔍 知识库查询
+                </Button>
+
+                {selectedRecord && kbResults[selectedRecord.recordId] && (
+                  <Card
+                    title="📖 知识库匹配结果"
+                    size="small"
+                    style={{ marginTop: 16 }}
+                  >
+                    <MarkdownRenderer
+                      content={kbResults[selectedRecord.recordId]}
+                    />
+                  </Card>
+                )}
+              </div>
             </div>
           )}
         </Spin>
