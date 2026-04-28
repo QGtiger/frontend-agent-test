@@ -14,6 +14,7 @@
     "@lightfish/server": "0.0.14",
     "@tailwindcss/vite": "^4.2.4",
     "ahooks": "^3.9.7",
+    "ali-oss": "^6.23.0",
     "antd": "6",
     "marked": "^15.0.0",
     "react": "^19.2.5",
