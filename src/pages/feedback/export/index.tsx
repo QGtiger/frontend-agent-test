@@ -19,6 +19,7 @@ import {
 import { InboxOutlined } from "@ant-design/icons";
 import { getAppConfig } from "../../../utils";
 import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 import AnalyzeResult, {
   type AnalyzeResultData,
   type TopIssue,
@@ -832,9 +833,9 @@ function generateExcel(records: FeedbackRecord[]) {
 
   XLSX.utils.book_append_sheet(wb, ws, "反馈数据");
 
-  // 使用 XLSX.writeFile 直接触发下载，兼容 HTTP 环境
-  XLSX.writeFile(
-    wb,
-    `飞书反馈数据_${new Date().toISOString().slice(0, 10)}.xlsx`
-  );
+  // 使用 file-saver 的 saveAs 触发下载，兼容 HTTP 环境
+  const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  const blob = new Blob([wbout], { type: "application/octet-stream" });
+  const fileName = `飞书反馈数据_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  saveAs(blob, fileName);
 }
