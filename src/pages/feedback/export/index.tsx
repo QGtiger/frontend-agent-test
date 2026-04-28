@@ -193,6 +193,32 @@ export default function FeedbackExportPage() {
     }
   };
 
+  /** 服务端下载：通过 GET 请求直接触发浏览器原生下载，避免 blob URL 安全警告 */
+  const handleServerDownload = async () => {
+    try {
+      await form.validateFields();
+    } catch {
+      return;
+    }
+
+    const values = form.getFieldsValue();
+    const { SERVER_API } = getAppConfig();
+
+    const params = new URLSearchParams({
+      appId: values.appId,
+      appSecret: values.appSecret,
+      appToken: values.appToken,
+      tableId: values.tableId,
+    });
+    if (values.viewId) params.set("viewId", values.viewId);
+    if (values.maxRecords) params.set("maxRecords", String(values.maxRecords));
+
+    // 直接打开新窗口触发 GET 下载，浏览器原生处理 Content-Disposition: attachment
+    window.open(
+      `${SERVER_API}/api/feedback/export/download?${params.toString()}`
+    );
+  };
+
   /** 解析上传的 JSON 文件 */
   const handleFileUpload = (file: File) => {
     setUploadError("");
@@ -526,6 +552,16 @@ interface AnalyzeResultData {
             icon={<InboxOutlined />}
           >
             📤 上传 AI 分析结果
+          </Button>
+
+          <Button
+            type="dashed"
+            onClick={handleServerDownload}
+            block
+            size="large"
+            style={{ marginTop: 12 }}
+          >
+            ⬇️ 服务端下载（兼容 HTTP）
           </Button>
         </Form>
       </div>
