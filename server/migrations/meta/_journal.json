@@ -15,6 +15,13 @@
       "when": 1777010750413,
       "tag": "0001_famous_mister_fear",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777358839910,
+      "tag": "0002_square_sprite",
+      "breakpoints": true
     }
   ]
 }

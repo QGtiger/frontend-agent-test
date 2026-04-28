@@ -64,3 +64,23 @@ export const analysisSessions = appSchema.table("analysis_sessions", {
   errorMessage: text("error_message"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+/**
+ * 飞书图片映射表
+ * 缓存飞书图片 URL 到 OSS URL 的映射，避免重复下载上传
+ */
+export const feishuImageMapping = appSchema.table("feishu_image_mapping", {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+
+  // 飞书图片 URL（唯一）
+  feishuUrl: text("feishu_url").notNull().unique(),
+
+  // OSS 图片 URL
+  ossUrl: text("oss_url").notNull(),
+
+  // 文件名
+  fileName: varchar("file_name", { length: 500 }),
+
+  // 创建时间
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});

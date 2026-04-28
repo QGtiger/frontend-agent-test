@@ -1,4 +1,6 @@
 import type { ContextWithDb } from "@lightfish/server";
+import { feishuImageMapping } from "../../../../schema/index.js";
+import { eq } from "drizzle-orm";
 
 const UPLOAD_URL = "https://logs.yingdao.com/report-api/upload/file";
 
@@ -37,7 +39,28 @@ export default async function imageProxy(c: ContextWithDb) {
 
   log("开始转存图片:", body.url.slice(0, 100), body.name);
 
-  // 获取飞书 token
+  // === 1. 先查数据库缓存 ===
+  const db = c.get("db");
+  if (db) {
+    const existing = await db
+      .select({ ossUrl: feishuImageMapping.ossUrl })
+      .from(feishuImageMapping)
+      .where(eq(feishuImageMapping.feishuUrl, body.url))
+      .limit(1);
+
+    if (existing.length > 0) {
+      log("缓存命中, ossUrl:", existing[0].ossUrl);
+      return {
+        url: existing[0].ossUrl,
+        name: body.name,
+      };
+    }
+    log("缓存未命中，开始下载上传");
+  } else {
+    log("数据库未配置，跳过缓存查询");
+  }
+
+  // === 2. 获取飞书 token ===
   const tokenRes = await fetch(
     "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
     {
@@ -59,7 +82,7 @@ export default async function imageProxy(c: ContextWithDb) {
   }
   const feishuToken = tokenData.tenant_access_token;
 
-  // 从飞书下载图片
+  // === 3. 从飞书下载图片 ===
   const response = await fetch(body.url, {
     method: "GET",
     headers: {
@@ -77,7 +100,7 @@ export default async function imageProxy(c: ContextWithDb) {
 
   log("图片下载成功, size:", blob.size, "type:", blob.type);
 
-  // 上传到 OSS
+  // === 4. 上传到 OSS ===
   const formData = new FormData();
   formData.append("file", blob);
   formData.append("filename", body.name);
@@ -108,6 +131,21 @@ export default async function imageProxy(c: ContextWithDb) {
   }
 
   log("图片转存成功, ossUrl:", ossUrl);
+
+  // === 5. 写入数据库缓存 ===
+  if (db) {
+    try {
+      await db.insert(feishuImageMapping).values({
+        feishuUrl: body.url,
+        ossUrl,
+        fileName: body.name,
+      });
+      log("缓存写入成功");
+    } catch (err) {
+      // 唯一键冲突等错误忽略（并发场景下可能已存在）
+      log("缓存写入失败（可能已存在）:", err);
+    }
+  }
 
   return {
     url: ossUrl,
