@@ -557,7 +557,7 @@ export default function FeedbackExportPage() {
       <Drawer
         title="📋 反馈记录详情"
         placement="right"
-        width={560}
+        width="50%"
         open={recordDetailOpen}
         onClose={() => {
           setRecordDetailOpen(false);

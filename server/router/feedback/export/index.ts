@@ -100,6 +100,10 @@ export default async function exportFeedback(c: ContextWithDb) {
       `https://open.feishu.cn/open-apis/bitable/v1/apps/${body.appToken}/tables/${body.tableId}/records/search`
     );
     searchUrl.searchParams.set("page_size", String(pageSize));
+    // page_token 是查询参数，不是请求体参数
+    if (pageToken) {
+      searchUrl.searchParams.set("page_token", pageToken);
+    }
 
     const searchRes = await fetch(searchUrl.toString(), {
       method: "POST",
@@ -112,7 +116,6 @@ export default async function exportFeedback(c: ContextWithDb) {
         field_names: fieldNames,
         sort: [],
         view_id: body.viewId || undefined,
-        page_token: pageToken,
       }),
     });
     const searchData = (await searchRes.json()) as {
