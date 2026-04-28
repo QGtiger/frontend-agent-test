@@ -424,6 +424,81 @@ export default function FeedbackExportPage() {
             </ul>
           </Card>
 
+          <Card title="🤖 AI 分析 Prompt" style={{ marginBottom: 16 }}>
+            <Text
+              type="secondary"
+              style={{ display: "block", marginBottom: 8 }}
+            >
+              将以下 prompt 发送给 AI，即可获得分析报告和 JSON 数据：
+            </Text>
+            <pre
+              style={{
+                fontSize: 12,
+                background: "#f5f5f5",
+                padding: 12,
+                borderRadius: 4,
+                overflow: "auto",
+                maxHeight: 300,
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-all",
+                cursor: "pointer",
+              }}
+              onClick={(e) => {
+                navigator.clipboard.writeText(
+                  (e.currentTarget as HTMLElement).textContent || ""
+                );
+                message.success("Prompt 已复制到剪贴板");
+              }}
+            >
+              {`帮我分析下当前目录下的「线上问题收集反馈数据表」里面的数据，给我一份完整的分析报告，分析出30个高频问题。
+
+交付产物为，一个 markdown 格式的分析报告
+
+一个json 文档，格式为
+
+\`\`\`json
+// 高频问题
+interface TopIssue {
+  rank: number;
+  title: string;
+  count: number;
+  description: string;
+  // 对应 的几个 记录，不用全部，来 不多于五个的 具有代表性的
+  recordIds: string[]
+}
+
+// 每一条记录
+interface FeedbackRecord {
+  recordId: string;
+  index: number;
+  description: string;
+  detail: string;
+  investigation: string;
+  images: Array<{ url: string; name: string }>;
+}
+
+interface AnalyzeResultData {
+  // 分析报告 markdown。 如果引用具体反馈时，必须使用 [反馈N](record://recordId) 格式，其中 N 是反馈序号，recordId 是反馈的唯一标识
+  analysis: string;
+  // 高频问题
+  topIssues: TopIssue[];
+  // 分析数据总数
+  total: number;
+  // 每一条解析记录
+  records?: FeedbackRecord[];
+}
+\`\`\`
+
+**注意** json文档的生成,  例如 analysis ，引用具体反馈时，必须使用 [反馈N](record://recordId) 格式 \`[反馈N](record://recordId)\` ，其中 N 是反馈序号，recordId 是反馈的唯一标识`}
+            </pre>
+            <Text
+              type="secondary"
+              style={{ fontSize: 11, marginTop: 4, display: "block" }}
+            >
+              💡 点击上方代码块即可复制
+            </Text>
+          </Card>
+
           <Button
             type="primary"
             onClick={handleExport}
