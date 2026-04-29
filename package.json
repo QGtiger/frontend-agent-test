@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.1",
-    "@lightfish/server": "0.0.14",
+    "@lightfish/server": "0.0.20",
     "@tailwindcss/vite": "^4.2.4",
     "ahooks": "^3.9.7",
     "ali-oss": "^6.23.0",

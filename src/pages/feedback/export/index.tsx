@@ -17,8 +17,7 @@ import {
   Spin,
 } from "antd";
 import { InboxOutlined } from "@ant-design/icons";
-import { apiRequest } from "@lightfish/server/api";
-import { getAppConfig } from "../../../utils";
+import { apiRequest, getServerUrl } from "@lightfish/server/api";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import AnalyzeResult, {
@@ -141,24 +140,22 @@ export default function FeedbackExportPage() {
     const values = form.getFieldsValue();
 
     try {
-      const json = await apiRequest<{ success: boolean; data: any }>(
-        "/feedback/export",
-        {
-          method: "POST",
-          data: {
-            appId: values.appId,
-            appSecret: values.appSecret,
-            appToken: values.appToken,
-            tableId: values.tableId,
-            viewId: values.viewId || undefined,
-            maxRecords: values.maxRecords
-              ? Number(values.maxRecords)
-              : undefined,
-          },
-        }
-      );
+      const json = await apiRequest<{
+        records: FeedbackRecord[];
+        total: number;
+      }>("/feedback/export", {
+        method: "POST",
+        data: {
+          appId: values.appId,
+          appSecret: values.appSecret,
+          appToken: values.appToken,
+          tableId: values.tableId,
+          viewId: values.viewId || undefined,
+          maxRecords: values.maxRecords ? Number(values.maxRecords) : undefined,
+        },
+      });
       // @lightfish/server 框架会自动包装为 { success: true, data: ... }
-      const resultData = json.data || json;
+      const resultData = json.data;
       const records: FeedbackRecord[] = resultData.records || [];
       const total = resultData.total || 0;
 
@@ -195,7 +192,6 @@ export default function FeedbackExportPage() {
     }
 
     const values = form.getFieldsValue();
-    const { SERVER_API } = getAppConfig();
 
     const params = new URLSearchParams({
       appId: values.appId,
@@ -206,10 +202,12 @@ export default function FeedbackExportPage() {
     if (values.viewId) params.set("viewId", values.viewId);
     if (values.maxRecords) params.set("maxRecords", String(values.maxRecords));
 
-    // 直接打开新窗口触发 GET 下载，浏览器原生处理 Content-Disposition: attachment
-    window.open(
-      `${SERVER_API}/api/feedback/export/download?${params.toString()}`
+    const serverUrl = getServerUrl(
+      `/feedback/export/download?${params.toString()}`
     );
+
+    // 直接打开新窗口触发 GET 下载，浏览器原生处理 Content-Disposition: attachment
+    window.open(serverUrl);
   };
 
   /** 解析上传的 JSON 文件 */
@@ -319,18 +317,18 @@ export default function FeedbackExportPage() {
       }
 
       try {
-        const result = await apiRequest<{
-          success: boolean;
-          data: { url: string };
-        }>("/feedback/export/image-proxy", {
-          method: "POST",
-          data: {
-            url: img.url,
-            name: img.name,
-            appId: values.appId,
-            appSecret: values.appSecret,
-          },
-        });
+        const result = await apiRequest<{ url: string }>(
+          "/feedback/export/image-proxy",
+          {
+            method: "POST",
+            data: {
+              url: img.url,
+              name: img.name,
+              appId: values.appId,
+              appSecret: values.appSecret,
+            },
+          }
+        );
         const data = (result as any).data || result;
         convertedImages[i] = { ...img, url: data.url };
       } catch (err) {

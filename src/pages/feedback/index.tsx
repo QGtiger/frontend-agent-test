@@ -11,11 +11,11 @@ import {
   Select,
   Collapse,
 } from "antd";
-import { getAppConfig } from "../../utils";
 import AnalyzeResult, {
   type AnalyzeResultData,
   type FeedbackRecord,
 } from "./components/AnalyzeResult";
+import { getServerUrl } from "@lightfish/server/api";
 
 const { TextArea } = Input;
 const { Title, Text, Paragraph } = Typography;
@@ -233,13 +233,10 @@ export default function FeedbackPage() {
       AI_PROVIDER_FIXED_CONFIG[provider] || AI_PROVIDER_FIXED_CONFIG.deepseek;
 
     try {
-      const { SERVER_API, version, appName } = getAppConfig();
-      const response = await fetch(SERVER_API + "/api/feedback/analyze", {
+      const response = await fetch(getServerUrl("feedback/analyze"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-App-Name": appName,
-          "X-Version": version,
         },
         body: JSON.stringify({
           feishu: {
