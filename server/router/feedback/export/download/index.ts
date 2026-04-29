@@ -163,7 +163,7 @@ export default async function exportDownload(c: ContextWithDb) {
   XLSX.utils.book_append_sheet(wb, ws, "反馈数据");
 
   // 生成 xlsx 二进制数据
-  const wbout = XLSX.write(wb, { bookType: "xlsx", type: "buffer" });
+  const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
 
   const filename = `飞书反馈数据_${new Date().toISOString().slice(0, 10)}.xlsx`;
   const encodedFilename = encodeURIComponent(filename);
