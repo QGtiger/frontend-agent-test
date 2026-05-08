@@ -4,33 +4,46 @@ import {
   formatRecordsToRows,
   generateXlsxBuffer,
 } from "../../../../utils/excel.js";
+import { uploadFileToOss } from "../../../../utils/upload.js";
 
 /**
- * GET /api/feedback/export/download
- * 从飞书拉取数据，在服务端生成 xlsx 并直接返回文件流下载。
+ * POST /api/feedback/export/upload-oss
+ * 从飞书拉取数据，在服务端生成 xlsx 并上传到 OSS，返回 OSS 地址。
  *
- * Query 参数：
- *   appId      - 飞书应用 App ID
- *   appSecret  - 飞书应用 App Secret
- *   appToken   - 多维表格 App Token
- *   tableId    - 多维表格 Table ID
- *   viewId     - 多维表格 View ID（可选）
- *   maxRecords - 最大拉取数量（可选）
+ * 请求体：
+ * {
+ *   appId: string;
+ *   appSecret: string;
+ *   appToken: string;
+ *   tableId: string;
+ *   viewId?: string;
+ *   maxRecords?: number;
+ * }
  *
- * 返回：xlsx 文件流（Content-Disposition: attachment）
+ * 返回：
+ * {
+ *   url: string;  // OSS 上的文件访问地址
+ *   name: string; // 文件名
+ * }
  */
-export default async function exportDownload(c: ContextWithDb) {
-  const { appId, appSecret, appToken, tableId, viewId, maxRecords } =
-    c.req.query();
+export default async function exportUploadOss(c: ContextWithDb) {
+  const body = await c.req.json<{
+    appId: string;
+    appSecret: string;
+    appToken: string;
+    tableId: string;
+    viewId?: string;
+    maxRecords?: number;
+  }>();
 
-  if (!appId || !appSecret || !appToken || !tableId) {
+  if (!body.appId || !body.appSecret || !body.appToken || !body.tableId) {
     throw new Error(
       "飞书配置不完整，请填写 App ID、App Secret、App Token 和 Table ID",
     );
   }
 
   const log = (msg: string, ...args: any[]) =>
-    console.log(`[feedback/export/download] ${msg}`, ...args);
+    console.log(`[feedback/export/upload-oss] ${msg}`, ...args);
 
   // === 阶段 1：获取飞书 token ===
   log("获取飞书 token...");
@@ -40,8 +53,8 @@ export default async function exportDownload(c: ContextWithDb) {
       method: "POST",
       headers: { "Content-Type": "application/json; charset=utf-8" },
       body: JSON.stringify({
-        app_id: appId,
-        app_secret: appSecret,
+        app_id: body.appId,
+        app_secret: body.appSecret,
       }),
     },
   );
@@ -59,7 +72,7 @@ export default async function exportDownload(c: ContextWithDb) {
   // === 阶段 2：全量拉取飞书数据 ===
   log("开始拉取飞书数据...");
 
-  const max = maxRecords ? Number(maxRecords) : 0;
+  const maxRecords = body.maxRecords || 0;
   const allRecords: Array<{
     record_id: string;
     fields: Record<string, any>;
@@ -70,13 +83,13 @@ export default async function exportDownload(c: ContextWithDb) {
   do {
     pageNum++;
 
-    const remaining = max > 0 ? max - allRecords.length : 500;
+    const remaining = maxRecords > 0 ? maxRecords - allRecords.length : 500;
     const pageSize = Math.min(500, remaining);
 
     if (pageSize <= 0) break;
 
     const searchUrl = new URL(
-      `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records/search`,
+      `https://open.feishu.cn/open-apis/bitable/v1/apps/${body.appToken}/tables/${body.tableId}/records/search`,
     );
     searchUrl.searchParams.set("page_size", String(pageSize));
     if (pageToken) {
@@ -93,7 +106,7 @@ export default async function exportDownload(c: ContextWithDb) {
         automatic_fields: false,
         field_names: [...FIELD_NAMES],
         sort: [],
-        view_id: viewId || undefined,
+        view_id: body.viewId || undefined,
       }),
     });
     const searchData = (await searchRes.json()) as {
@@ -115,8 +128,8 @@ export default async function exportDownload(c: ContextWithDb) {
       `第 ${pageNum} 页，本页 ${items.length} 条，累计 ${allRecords.length} 条`,
     );
 
-    if (max > 0 && allRecords.length >= max) {
-      log(`已达到最大拉取数量 ${max} 条，停止拉取`);
+    if (maxRecords > 0 && allRecords.length >= maxRecords) {
+      log(`已达到最大拉取数量 ${maxRecords} 条，停止拉取`);
       break;
     }
 
@@ -127,18 +140,23 @@ export default async function exportDownload(c: ContextWithDb) {
 
   log(`飞书数据拉取完成，共 ${allRecords.length} 条`);
 
-  // === 阶段 3：格式化数据并生成 xlsx ===
+  // === 阶段 3：生成 xlsx ===
+  log("生成 xlsx...");
   const rows = formatRecordsToRows(allRecords);
-  const wbout = generateXlsxBuffer(rows);
+  const buffer = generateXlsxBuffer(rows);
 
-  const filename = `飞书反馈数据_${new Date().toISOString().slice(0, 10)}.xlsx`;
-  const encodedFilename = encodeURIComponent(filename);
-
-  // 返回文件流，浏览器原生触发下载
-  return c.newResponse(wbout, 200, {
-    "Content-Type":
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "Content-Disposition": `attachment; filename*=UTF-8''${encodedFilename}`,
-    "Content-Length": String(wbout.byteLength),
+  // === 阶段 4：上传到 OSS ===
+  const fileName = `飞书反馈数据_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
+
+  log("开始上传到 OSS...");
+  const ossUrl = await uploadFileToOss(blob, fileName);
+  log("上传成功, ossUrl:", ossUrl);
+
+  return {
+    url: ossUrl,
+    name: fileName,
+  };
 }

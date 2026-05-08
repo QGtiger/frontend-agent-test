@@ -25,6 +25,8 @@ import AnalyzeResult, {
   type TopIssue,
   type FeedbackRecord,
 } from "../components/AnalyzeResult";
+import UploadToOssButton from "../components/UploadToOssButton";
+import AiAnalysisDrawer from "../components/AiAnalysisDrawer";
 import { hideLoading, showLoading } from "../../../utils/loading";
 import MarkdownRenderer from "../MarkdownRenderer";
 
@@ -51,20 +53,23 @@ export default function FeedbackExportPage() {
   // 上传 JSON 相关
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [uploadResult, setUploadResult] = useState<AnalyzeResultData | null>(
-    null
+    null,
   );
   const [uploadError, setUploadError] = useState<string>("");
 
   // 记录详情 Drawer
   const [recordDetailOpen, setRecordDetailOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<FeedbackRecord | null>(
-    null
+    null,
   );
   const [convertingImages, setConvertingImages] = useState(false);
 
   // 知识库查询结果缓存：recordId -> text
   const [kbResults, setKbResults] = useState<Record<string, string>>({});
   const [kbLoading, setKbLoading] = useState(false);
+
+  // AI 分析 Drawer
+  const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
 
   const handleKBQuery = async () => {
     if (!selectedRecord) return;
@@ -108,7 +113,7 @@ export default function FeedbackExportPage() {
           body: JSON.stringify({
             messages: [{ role: "user", content }],
           }),
-        }
+        },
       );
 
       if (!res.ok) {
@@ -203,7 +208,7 @@ export default function FeedbackExportPage() {
     if (values.maxRecords) params.set("maxRecords", String(values.maxRecords));
 
     const serverUrl = getServerUrl(
-      `/feedback/export/download?${params.toString()}`
+      `/feedback/export/download?${params.toString()}`,
     );
 
     // 直接打开新窗口触发 GET 下载，浏览器原生处理 Content-Disposition: attachment
@@ -224,7 +229,7 @@ export default function FeedbackExportPage() {
         // 校验格式
         if (!data.analysis || !Array.isArray(data.topIssues)) {
           throw new Error(
-            "JSON 格式不正确，需要包含 analysis(string) 和 topIssues(array)"
+            "JSON 格式不正确，需要包含 analysis(string) 和 topIssues(array)",
           );
         }
 
@@ -236,7 +241,7 @@ export default function FeedbackExportPage() {
             typeof issue.count !== "number"
           ) {
             throw new Error(
-              "topIssues 中每个项需要包含 rank(number), title(string), count(number)"
+              "topIssues 中每个项需要包含 rank(number), title(string), count(number)",
             );
           }
           // 确保 recordIds 存在
@@ -264,7 +269,7 @@ export default function FeedbackExportPage() {
 
   const handleRecordClick = async (
     recordId: string,
-    record?: FeedbackRecord
+    record?: FeedbackRecord,
   ) => {
     if (!record) {
       message.info(`记录 ${recordId} 的详细数据未包含在 JSON 中`);
@@ -283,13 +288,13 @@ export default function FeedbackExportPage() {
           url,
           name: names[idx] || `图片 ${idx + 1}`,
         }));
-      }
+      },
     );
 
     // 检查是否有飞书图片需要转存
     const hasFeishuImages = expandedImages.some(
       (img) =>
-        img.url.includes("open.feishu.cn") || img.url.includes("feishu.cn")
+        img.url.includes("open.feishu.cn") || img.url.includes("feishu.cn"),
     );
 
     if (!hasFeishuImages) {
@@ -327,7 +332,7 @@ export default function FeedbackExportPage() {
               appId: values.appId,
               appSecret: values.appSecret,
             },
-          }
+          },
         );
         const data = (result as any).data || result;
         convertedImages[i] = { ...img, url: data.url };
@@ -452,7 +457,7 @@ export default function FeedbackExportPage() {
               }}
               onClick={(e) => {
                 navigator.clipboard.writeText(
-                  (e.currentTarget as HTMLElement).textContent || ""
+                  (e.currentTarget as HTMLElement).textContent || "",
                 );
                 message.success("Prompt 已复制到剪贴板");
               }}
@@ -543,6 +548,19 @@ interface AnalyzeResultData {
           >
             ⬇️ 服务端下载（兼容 HTTP）
           </Button>
+
+          <UploadToOssButton form={form} />
+
+          <Button
+            type="primary"
+            ghost
+            onClick={() => setAiDrawerOpen(true)}
+            block
+            size="large"
+            style={{ marginTop: 12 }}
+          >
+            🤖 AI 分析
+          </Button>
         </Form>
       </div>
 
@@ -575,8 +593,8 @@ interface AnalyzeResultData {
                     progress === "fetching"
                       ? `第 ${fetchProgress.page} 页，已获取 ${fetchProgress.total} 条`
                       : progressStepMap[progress] >= 1
-                      ? `共 ${fetchProgress.total} 条`
-                      : "等待中",
+                        ? `共 ${fetchProgress.total} 条`
+                        : "等待中",
                 },
                 {
                   title: "下载",
@@ -584,8 +602,8 @@ interface AnalyzeResultData {
                     progress === "done"
                       ? "Excel 已生成"
                       : progress === "error"
-                      ? "导出失败"
-                      : "等待中",
+                        ? "导出失败"
+                        : "等待中",
                 },
               ]}
             />
@@ -710,6 +728,13 @@ interface AnalyzeResultData {
           </div>
         )}
       </Drawer>
+
+      {/* AI 分析 Drawer */}
+      <AiAnalysisDrawer
+        open={aiDrawerOpen}
+        onClose={() => setAiDrawerOpen(false)}
+        form={form}
+      />
 
       {/* 记录详情 Drawer */}
       <Drawer
