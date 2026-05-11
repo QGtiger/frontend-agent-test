@@ -506,7 +506,7 @@ interface AnalyzeResultData {
       <Drawer
         title="📤 上传 AI 分析结果"
         placement="right"
-        width="80%"
+        width="100%"
         open={drawerOpen}
         onClose={handleDrawerClose}
         extra={

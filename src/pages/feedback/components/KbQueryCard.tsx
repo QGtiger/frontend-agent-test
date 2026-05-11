@@ -1,6 +1,13 @@
 import { useState } from "react";
-import { Card, Typography, Button } from "antd";
-import { DownOutlined, UpOutlined } from "@ant-design/icons";
+import { Card, Typography, Dropdown } from "antd";
+import {
+  DownOutlined,
+  UpOutlined,
+  EllipsisOutlined,
+  MessageOutlined,
+  EyeOutlined,
+} from "@ant-design/icons";
+import type { MenuProps } from "antd";
 import MarkdownRenderer from "../MarkdownRenderer";
 
 const { Text } = Typography;
@@ -9,14 +16,39 @@ interface KbQueryCardProps {
   id: number;
   result: string;
   createdAt: string;
+  onFeedback?: (kbCacheId: number) => void;
+  onViewFeedback?: (kbCacheId: number) => void;
 }
 
 export default function KbQueryCard({
   id,
   result,
   createdAt,
+  onFeedback,
+  onViewFeedback,
 }: KbQueryCardProps) {
   const [expanded, setExpanded] = useState(false);
+
+  const menuItems: MenuProps["items"] = [
+    {
+      key: "feedback",
+      icon: <MessageOutlined />,
+      label: "反馈",
+      onClick: (e) => {
+        e.domEvent.stopPropagation();
+        onFeedback?.(id);
+      },
+    },
+    {
+      key: "view-feedback",
+      icon: <EyeOutlined />,
+      label: "查看反馈",
+      onClick: (e) => {
+        e.domEvent.stopPropagation();
+        onViewFeedback?.(id);
+      },
+    },
+  ];
 
   return (
     <Card key={id} size="small" style={{ marginBottom: 8 }}>
@@ -25,18 +57,31 @@ export default function KbQueryCard({
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+          cursor: "pointer",
         }}
-        className="cursor-pointer"
         onClick={() => setExpanded(!expanded)}
       >
         <Text type="secondary" style={{ fontSize: 12 }}>
           {new Date(createdAt).toLocaleString("zh-CN")}
         </Text>
-        <Button
-          type="text"
-          size="small"
-          icon={expanded ? <UpOutlined /> : <DownOutlined />}
-        />
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <Dropdown menu={{ items: menuItems }} trigger={["click"]}>
+            <span
+              style={{
+                fontSize: 16,
+                color: "#999",
+                cursor: "pointer",
+                padding: "0 4px",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <EllipsisOutlined />
+            </span>
+          </Dropdown>
+          <span style={{ fontSize: 12, color: "#999" }}>
+            {expanded ? <UpOutlined /> : <DownOutlined />}
+          </span>
+        </div>
       </div>
       <div
         style={{

@@ -104,3 +104,29 @@ export const kbCache = appSchema.table("kb_cache", {
   // 创建时间
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+/**
+ * 知识库查询反馈表
+ * 每条知识库查询结果可以有多个反馈评价（一对多）
+ */
+export const kbFeedback = appSchema.table("kb_feedback", {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+
+  // 关联的知识库查询记录 ID
+  kbCacheId: integer("kb_cache_id").notNull(),
+
+  // 反馈人员所属组
+  group: varchar("group", { length: 20 }).notNull(),
+
+  // 打分 1-10
+  score: integer("score").notNull(),
+
+  // 打分理由和修改建议
+  reason: text("reason"),
+
+  // 其他增量补充
+  supplement: text("supplement"),
+
+  // 创建时间
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});

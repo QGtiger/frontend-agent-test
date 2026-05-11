@@ -9,14 +9,19 @@ import {
   Spin,
   message,
   List,
+  Typography,
 } from "antd";
-import { InboxOutlined } from "@ant-design/icons";
+import { InboxOutlined, CloseOutlined } from "@ant-design/icons";
 import type { FormInstance } from "antd";
 import { useRequest } from "ahooks";
 import { apiRequest } from "@lightfish/server/api";
 import type { FeedbackRecord } from "./AnalyzeResult";
 import { hideLoading, showLoading } from "../../../utils/loading";
 import KbQueryCard from "./KbQueryCard";
+import KbFeedbackForm from "./KbFeedbackForm";
+import KbFeedbackList from "./KbFeedbackList";
+
+const { Text } = Typography;
 
 interface FeedbackRecordDetailDrawerProps {
   record: FeedbackRecord | null;
@@ -210,6 +215,14 @@ export default function FeedbackRecordDetailDrawer({
     onClose();
   };
 
+  // 第三列模式：form = 反馈表单, list = 查看反馈列表, null = 不显示
+  const [thirdColumn, setThirdColumn] = useState<{
+    mode: "form" | "list";
+    id: number;
+    createdAt: string;
+    result: string;
+  } | null>(null);
+
   // 点击知识库查询按钮
   const handleKBQuery = () => {
     if (!displayRecord) return;
@@ -322,11 +335,90 @@ export default function FeedbackRecordDetailDrawer({
                       id={item.id}
                       result={item.result}
                       createdAt={item.createdAt}
+                      onFeedback={(kbCacheId) => {
+                        setThirdColumn({
+                          mode: "form",
+                          id: kbCacheId,
+                          createdAt: item.createdAt,
+                          result: item.result,
+                        });
+                      }}
+                      onViewFeedback={(kbCacheId) => {
+                        setThirdColumn({
+                          mode: "list",
+                          id: kbCacheId,
+                          createdAt: item.createdAt,
+                          result: item.result,
+                        });
+                      }}
                     />
                   )}
                 />
               </div>
             </div>
+
+            {/* 第三列：反馈表单 / 查看反馈列表（互斥） */}
+            {thirdColumn && (
+              <div
+                style={{
+                  width: 360,
+                  flexShrink: 0,
+                  borderLeft: "1px solid #f0f0f0",
+                  paddingLeft: 24,
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 16,
+                  }}
+                >
+                  <Text strong style={{ fontSize: 14 }}>
+                    {thirdColumn.mode === "form"
+                      ? "💬 反馈评价"
+                      : "📋 查看反馈"}
+                  </Text>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<CloseOutlined />}
+                    onClick={() => setThirdColumn(null)}
+                  />
+                </div>
+                <div style={{ flex: 1, overflow: "auto" }}>
+                  {thirdColumn.mode === "form" ? (
+                    <KbFeedbackForm
+                      kbCacheId={thirdColumn.id}
+                      kbCreatedAt={thirdColumn.createdAt}
+                      kbSummary={thirdColumn.result
+                        .replace(/[#*`[\]]/g, "")
+                        .slice(0, 200)}
+                      onSuccess={() => {
+                        // 提交成功后切换到查看反馈列表
+                        setThirdColumn({
+                          mode: "list",
+                          id: thirdColumn.id,
+                          createdAt: thirdColumn.createdAt,
+                          result: thirdColumn.result,
+                        });
+                      }}
+                    />
+                  ) : (
+                    <KbFeedbackList
+                      kbCacheId={thirdColumn.id}
+                      kbCreatedAt={thirdColumn.createdAt}
+                      kbSummary={thirdColumn.result
+                        .replace(/[#*`[\]]/g, "")
+                        .slice(0, 200)}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Spin>
