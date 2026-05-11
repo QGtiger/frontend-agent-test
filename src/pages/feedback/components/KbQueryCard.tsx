@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Card, Typography, Dropdown, message } from "antd";
+import copy from "copy-to-clipboard";
 import {
   DownOutlined,
   UpOutlined,
@@ -56,16 +57,10 @@ export default function KbQueryCard({
       icon: <BugOutlined />,
       label: "调试反馈",
       onClick: (e) => {
+        e.domEvent.stopPropagation();
         if (curlCommand) {
-          navigator.clipboard
-            .writeText(curlCommand)
-            .then(() => {
-              message.success("已复制 curl 命令，可发给产研调试");
-            })
-            .catch((err) => {
-              console.error("复制失败:", err);
-              message.error("复制失败，请手动复制");
-            });
+          copy(curlCommand);
+          message.success("已复制 curl 命令，可发给产研调试");
         } else {
           message.warning("暂无 curl 命令");
         }
