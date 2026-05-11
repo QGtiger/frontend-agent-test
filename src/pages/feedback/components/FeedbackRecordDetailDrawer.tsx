@@ -106,7 +106,7 @@ export default function FeedbackRecordDetailDrawer({
         method: "POST",
         data: params,
       });
-      return (res as any).data || res;
+      return res.data;
     },
     {
       manual: true,
@@ -209,7 +209,7 @@ export default function FeedbackRecordDetailDrawer({
     <Drawer
       title="📋 反馈记录详情"
       placement="right"
-      width="50%"
+      width="78%"
       open
       onClose={handleClose}
       extra={

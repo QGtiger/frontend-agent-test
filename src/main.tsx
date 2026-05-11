@@ -2,10 +2,19 @@ import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { initRoutes } from "./utils/pagerouter/index.tsx";
 import { ErrorBoundary, type FallbackProps } from "react-error-boundary";
-import { Button, Result } from "antd";
+import { Button, message, Result } from "antd";
 import { useMount } from "ahooks";
+import { lightfishApiClient } from "@lightfish/server/api";
 
 import "./main.css";
+
+lightfishApiClient.interceptors.response.use((res: any) => {
+  if (res.data.code !== 200) {
+    message.error(res.data.message || "接口请求失败");
+    throw new Error(res.data.message || "接口请求失败");
+  }
+  return res;
+});
 
 const routes = initRoutes();
 console.log(routes);
@@ -45,5 +54,5 @@ function ErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
 createRoot(document.getElementById("root")!).render(
   <ErrorBoundary FallbackComponent={ErrorFallback}>
     <RouterProvider router={router} />
-  </ErrorBoundary>
+  </ErrorBoundary>,
 );
