@@ -35,6 +35,7 @@ export default async function kbQueryList(c: ContextWithDb) {
     .select({
       id: kbCache.id,
       result: kbCache.result,
+      curlCommand: kbCache.curlCommand,
       createdAt: kbCache.createdAt,
     })
     .from(kbCache)

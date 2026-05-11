@@ -101,6 +101,9 @@ export const kbCache = appSchema.table("kb_cache", {
   // 知识库返回结果（Markdown）
   result: text("result").notNull(),
 
+  // 等效 curl 命令（用于研发调试）
+  curlCommand: text("curl_command"),
+
   // 创建时间
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

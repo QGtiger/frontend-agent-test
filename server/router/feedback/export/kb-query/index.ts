@@ -68,7 +68,11 @@ export default async function kbQuery(c: ContextWithDb) {
     throw new Error("没有可查询的内容");
   }
 
-  // === 2. 调用外部知识库 API ===
+  // === 2. 生成等效 curl 命令 ===
+  const curlCommand = `curl -X POST 'https://yddoc.yingdao.com/api/agents/rpaQaAgent/generate' \\\n  -H 'Content-Type: application/json' \\\n  -H 'Cookie: tgw_l7_route=7c8ae90f48839c29750e1ccc76081893' \\\n  -d '${JSON.stringify({ messages: [{ role: "user", content }] })}'`;
+  log("等效 curl 命令:\n", curlCommand);
+
+  // === 3. 调用外部知识库 API ===
   log("调用外部知识库 API, recordId:", body.recordId);
   const res = await fetch(
     "https://yddoc.yingdao.com/api/agents/rpaQaAgent/generate",
@@ -92,13 +96,14 @@ export default async function kbQuery(c: ContextWithDb) {
   log("调用外部知识库 API, 返回结果:", result.text, JSON.stringify(result));
   const resultText = result.text || "无返回结果";
 
-  // === 3. 写入数据库（新增一条记录） ===
+  // === 4. 写入数据库（新增一条记录） ===
   const [inserted] = await db
     .insert(kbCache)
     .values({
       recordId: body.recordId,
       queryContent: content,
       result: resultText,
+      curlCommand,
     })
     .returning({
       id: kbCache.id,

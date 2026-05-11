@@ -32,6 +32,7 @@ interface FeedbackRecordDetailDrawerProps {
 interface KbQueryItem {
   id: number;
   result: string;
+  curlCommand?: string | null;
   createdAt: string;
 }
 
@@ -335,6 +336,7 @@ export default function FeedbackRecordDetailDrawer({
                       id={item.id}
                       result={item.result}
                       createdAt={item.createdAt}
+                      curlCommand={item.curlCommand}
                       onFeedback={(kbCacheId) => {
                         setThirdColumn({
                           mode: "form",

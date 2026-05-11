@@ -1,0 +1,1 @@
+ALTER TABLE "frontend-agent-test"."kb_cache" ADD COLUMN "curl_command" text;

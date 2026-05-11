@@ -43,6 +43,13 @@
       "when": 1778468060943,
       "tag": "0005_add_kb_feedback",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778471196254,
+      "tag": "0006_add_curl_command",
+      "breakpoints": true
     }
   ]
 }

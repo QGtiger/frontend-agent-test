@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Card, Typography, Dropdown } from "antd";
+import { Card, Typography, Dropdown, message } from "antd";
 import {
   DownOutlined,
   UpOutlined,
   EllipsisOutlined,
   MessageOutlined,
   EyeOutlined,
+  BugOutlined,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import MarkdownRenderer from "../MarkdownRenderer";
@@ -16,6 +17,7 @@ interface KbQueryCardProps {
   id: number;
   result: string;
   createdAt: string;
+  curlCommand?: string | null;
   onFeedback?: (kbCacheId: number) => void;
   onViewFeedback?: (kbCacheId: number) => void;
 }
@@ -24,6 +26,7 @@ export default function KbQueryCard({
   id,
   result,
   createdAt,
+  curlCommand,
   onFeedback,
   onViewFeedback,
 }: KbQueryCardProps) {
@@ -48,6 +51,26 @@ export default function KbQueryCard({
         onViewFeedback?.(id);
       },
     },
+    {
+      key: "debug",
+      icon: <BugOutlined />,
+      label: "调试反馈",
+      onClick: (e) => {
+        if (curlCommand) {
+          navigator.clipboard
+            .writeText(curlCommand)
+            .then(() => {
+              message.success("已复制 curl 命令，可发给产研调试");
+            })
+            .catch((err) => {
+              console.error("复制失败:", err);
+              message.error("复制失败，请手动复制");
+            });
+        } else {
+          message.warning("暂无 curl 命令");
+        }
+      },
+    },
   ];
 
   return (
@@ -64,7 +87,10 @@ export default function KbQueryCard({
         <Text type="secondary" style={{ fontSize: 12 }}>
           {new Date(createdAt).toLocaleString("zh-CN")}
         </Text>
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <div
+          style={{ display: "flex", alignItems: "center", gap: 4 }}
+          onClick={(e) => e.stopPropagation()}
+        >
           <Dropdown menu={{ items: menuItems }} trigger={["click"]}>
             <span
               style={{
@@ -73,7 +99,6 @@ export default function KbQueryCard({
                 cursor: "pointer",
                 padding: "0 4px",
               }}
-              onClick={(e) => e.stopPropagation()}
             >
               <EllipsisOutlined />
             </span>
