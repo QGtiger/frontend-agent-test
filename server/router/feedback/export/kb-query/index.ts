@@ -89,7 +89,7 @@ export default async function kbQuery(c: ContextWithDb) {
   }
 
   const result = await res.json();
-  log("调用外部知识库 API, 返回结果:", result.text);
+  log("调用外部知识库 API, 返回结果:", result.text, JSON.stringify(result));
   const resultText = result.text || "无返回结果";
 
   // === 3. 写入数据库（新增一条记录） ===
