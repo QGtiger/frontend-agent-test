@@ -11,10 +11,6 @@ import {
   Drawer,
   Upload,
   Space,
-  Tag,
-  Descriptions,
-  Image,
-  Spin,
 } from "antd";
 import { InboxOutlined } from "@ant-design/icons";
 import { apiRequest, getServerUrl } from "@lightfish/server/api";
@@ -27,8 +23,7 @@ import AnalyzeResult, {
 } from "../components/AnalyzeResult";
 import UploadToOssButton from "../components/UploadToOssButton";
 import AiAnalysisDrawer from "../components/AiAnalysisDrawer";
-import { hideLoading, showLoading } from "../../../utils/loading";
-import MarkdownRenderer from "../MarkdownRenderer";
+import FeedbackRecordDetailDrawer from "../components/FeedbackRecordDetailDrawer";
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -62,75 +57,9 @@ export default function FeedbackExportPage() {
   const [selectedRecord, setSelectedRecord] = useState<FeedbackRecord | null>(
     null,
   );
-  const [convertingImages, setConvertingImages] = useState(false);
-
-  // 知识库查询结果缓存：recordId -> text
-  const [kbResults, setKbResults] = useState<Record<string, string>>({});
-  const [kbLoading, setKbLoading] = useState(false);
 
   // AI 分析 Drawer
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
-
-  const handleKBQuery = async () => {
-    if (!selectedRecord) return;
-
-    const recordId = selectedRecord.recordId;
-    // 如果已有缓存，直接展示
-    if (kbResults[recordId]) return;
-
-    const parts: string[] = [];
-    if (selectedRecord.description) {
-      parts.push(`描述(人、操作、现象)：${selectedRecord.description}`);
-    }
-    if (selectedRecord.detail) {
-      parts.push(`详细说明「现象、操作、问题」：${selectedRecord.detail}`);
-    }
-    if (selectedRecord.investigation) {
-      parts.push(`排查情况：${selectedRecord.investigation}`);
-    }
-    if (selectedRecord.images?.length > 0) {
-      const imageInfo = selectedRecord.images
-        .map((img) => `[图片] ${img.name}: ${img.url}`)
-        .join("\n");
-      parts.push(`相关图片：\n${imageInfo}`);
-    }
-    const content = parts.join("\n\n");
-    if (!content) {
-      message.warning("没有可查询的内容");
-      return;
-    }
-
-    setKbLoading(true);
-    try {
-      const res = await fetch(
-        "https://test-yddoc.yingdao.com/api/agents/rpaQaAgent/generate",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Cookie: "tgw_l7_route=7c8ae90f48839c29750e1ccc76081893",
-          },
-          body: JSON.stringify({
-            messages: [{ role: "user", content }],
-          }),
-        },
-      );
-
-      if (!res.ok) {
-        throw new Error(`请求失败 (${res.status})`);
-      }
-
-      const result = await res.json();
-      setKbResults((prev) => ({
-        ...prev,
-        [recordId]: result.text || "无返回结果",
-      }));
-    } catch (err: any) {
-      message.error("知识库查询失败: " + err.message);
-    } finally {
-      setKbLoading(false);
-    }
-  };
 
   const handleExport = async () => {
     try {
@@ -267,90 +196,15 @@ export default function FeedbackExportPage() {
     reader.readAsText(file);
   };
 
-  const handleRecordClick = async (
-    recordId: string,
-    record?: FeedbackRecord,
-  ) => {
+  const handleRecordClick = (recordId: string, record?: FeedbackRecord) => {
     if (!record) {
       message.info(`记录 ${recordId} 的详细数据未包含在 JSON 中`);
       return;
     }
 
-    // 先展开 images 中 "; " 分隔的多个 URL，拆成独立图片项
-    const expandedImages: FeedbackRecord["images"] = record.images.flatMap(
-      (img) => {
-        const urls = img.url.split("; ").filter(Boolean);
-        const names = img.name.split("; ").filter(Boolean);
-        if (urls.length <= 1) {
-          return [{ url: img.url, name: img.name || "图片" }];
-        }
-        return urls.map((url, idx) => ({
-          url,
-          name: names[idx] || `图片 ${idx + 1}`,
-        }));
-      },
-    );
-
-    // 检查是否有飞书图片需要转存
-    const hasFeishuImages = expandedImages.some(
-      (img) =>
-        img.url.includes("open.feishu.cn") || img.url.includes("feishu.cn"),
-    );
-
-    if (!hasFeishuImages) {
-      // 没有飞书图片，直接打开 Drawer
-      setSelectedRecord({ ...record, images: expandedImages });
-      setRecordDetailOpen(true);
-      return;
-    }
-
-    showLoading("正在转存飞书图片...");
-    // 有飞书图片，先转存再打开 Drawer
-    setConvertingImages(true);
-    const values = form.getFieldsValue();
-
-    const convertedImages = [...expandedImages];
-    let hasError = false;
-
-    for (let i = 0; i < convertedImages.length; i++) {
-      const img = convertedImages[i];
-      if (
-        !img.url.includes("open.feishu.cn") &&
-        !img.url.includes("feishu.cn")
-      ) {
-        continue; // 非飞书图片跳过
-      }
-
-      try {
-        const result = await apiRequest<{ url: string }>(
-          "/feedback/export/image-proxy",
-          {
-            method: "POST",
-            data: {
-              url: img.url,
-              name: img.name,
-              appId: values.appId,
-              appSecret: values.appSecret,
-            },
-          },
-        );
-        const data = (result as any).data || result;
-        convertedImages[i] = { ...img, url: data.url };
-      } catch (err) {
-        console.warn(`图片转存异常: ${img.name}`, err);
-        hasError = true;
-      }
-    }
-
-    setConvertingImages(false);
-    hideLoading();
-    // 转存完成后，再打开 Drawer
-    setSelectedRecord({ ...record, images: convertedImages });
+    // 直接设置 record，图片转存在 FeedbackRecordDetailDrawer 内部自动处理
+    setSelectedRecord(record);
     setRecordDetailOpen(true);
-
-    if (hasError) {
-      message.warning("部分图片转存失败，已展示原始飞书链接");
-    }
   };
 
   const handleDrawerClose = () => {
@@ -737,107 +591,15 @@ interface AnalyzeResultData {
       />
 
       {/* 记录详情 Drawer */}
-      <Drawer
-        title="📋 反馈记录详情"
-        placement="right"
-        width="50%"
+      <FeedbackRecordDetailDrawer
+        record={selectedRecord}
         open={recordDetailOpen}
         onClose={() => {
           setRecordDetailOpen(false);
           setSelectedRecord(null);
         }}
-        extra={
-          <Space>
-            <Button
-              onClick={() => {
-                setRecordDetailOpen(false);
-                setSelectedRecord(null);
-              }}
-            >
-              关闭
-            </Button>
-          </Space>
-        }
-      >
-        <Spin spinning={convertingImages} tip="正在转存飞书图片...">
-          {selectedRecord && (
-            <div>
-              <Descriptions column={1} bordered size="small">
-                <Descriptions.Item label="记录 ID">
-                  <Tag color="geekblue">{selectedRecord.recordId}</Tag>
-                </Descriptions.Item>
-                <Descriptions.Item label="序号">
-                  #{selectedRecord.index}
-                </Descriptions.Item>
-                <Descriptions.Item label="描述(人、操作、现象)">
-                  {selectedRecord.description || "-"}
-                </Descriptions.Item>
-                <Descriptions.Item label="详细说明「现象、操作、问题」">
-                  <div style={{ whiteSpace: "pre-wrap" }}>
-                    {selectedRecord.detail || "-"}
-                  </div>
-                </Descriptions.Item>
-                <Descriptions.Item label="排查情况">
-                  <div style={{ whiteSpace: "pre-wrap" }}>
-                    {selectedRecord.investigation || "-"}
-                  </div>
-                </Descriptions.Item>
-                <Descriptions.Item label="图片">
-                  {selectedRecord.images?.length > 0 ? (
-                    <Space direction="vertical" size={8}>
-                      {selectedRecord.images.map((img, idx) => (
-                        <div key={idx}>
-                          <Image
-                            src={img.url}
-                            alt={img.name}
-                            style={{ maxWidth: 400, maxHeight: 300 }}
-                            fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
-                          />
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: "#999",
-                              marginTop: 4,
-                            }}
-                          >
-                            {img.name}
-                          </div>
-                        </div>
-                      ))}
-                    </Space>
-                  ) : (
-                    "-"
-                  )}
-                </Descriptions.Item>
-              </Descriptions>
-
-              {/* 知识库查询区域 */}
-              <div style={{ marginTop: 24 }}>
-                <Button
-                  type="primary"
-                  icon={<InboxOutlined />}
-                  onClick={handleKBQuery}
-                  loading={kbLoading}
-                >
-                  🔍 知识库查询
-                </Button>
-
-                {selectedRecord && kbResults[selectedRecord.recordId] && (
-                  <Card
-                    title="📖 知识库匹配结果"
-                    size="small"
-                    style={{ marginTop: 16 }}
-                  >
-                    <MarkdownRenderer
-                      content={kbResults[selectedRecord.recordId]}
-                    />
-                  </Card>
-                )}
-              </div>
-            </div>
-          )}
-        </Spin>
-      </Drawer>
+        form={form}
+      />
     </div>
   );
 }
