@@ -86,16 +86,16 @@ export const feishuImageMapping = appSchema.table("feishu_image_mapping", {
 });
 
 /**
- * 知识库查询缓存表
- * 以 recordId 为 key 缓存知识库查询结果，避免重复调用外部 API
+ * 知识库查询记录表
+ * 每次知识库查询都会新增一条记录，一个反馈记录对应多次查询（一对多）
  */
 export const kbCache = appSchema.table("kb_cache", {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
 
-  // 反馈记录 ID（唯一）
-  recordId: text("record_id").notNull().unique(),
+  // 反馈记录 ID
+  recordId: text("record_id").notNull(),
 
-  // 查询时拼接的内容（用于判断是否需要重新生成）
+  // 查询时拼接的内容
   queryContent: text("query_content").notNull(),
 
   // 知识库返回结果（Markdown）
@@ -103,7 +103,4 @@ export const kbCache = appSchema.table("kb_cache", {
 
   // 创建时间
   createdAt: timestamp("created_at").notNull().defaultNow(),
-
-  // 更新时间
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
