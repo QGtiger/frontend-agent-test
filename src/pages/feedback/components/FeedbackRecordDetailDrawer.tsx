@@ -12,6 +12,7 @@ import {
 } from "antd";
 import { InboxOutlined } from "@ant-design/icons";
 import type { FormInstance } from "antd";
+import { useRequest } from "ahooks";
 import { apiRequest } from "@lightfish/server/api";
 import type { FeedbackRecord } from "./AnalyzeResult";
 import MarkdownRenderer from "../MarkdownRenderer";
@@ -19,9 +20,13 @@ import { hideLoading, showLoading } from "../../../utils/loading";
 
 interface FeedbackRecordDetailDrawerProps {
   record: FeedbackRecord | null;
-  open: boolean;
   onClose: () => void;
   form?: FormInstance;
+}
+
+interface KbQueryResult {
+  cached: boolean;
+  result: string | null;
 }
 
 /** 展开 images 中 "; " 分隔的多个 URL，拆成独立图片项 */
@@ -51,7 +56,6 @@ function hasFeishuImages(images: FeedbackRecord["images"]): boolean {
 
 export default function FeedbackRecordDetailDrawer({
   record,
-  open,
   onClose,
   form,
 }: FeedbackRecordDetailDrawerProps) {
@@ -59,8 +63,6 @@ export default function FeedbackRecordDetailDrawer({
   const [convertedImages, setConvertedImages] = useState<
     FeedbackRecord["images"] | null
   >(null);
-  const [kbResults, setKbResults] = useState<Record<string, string>>({});
-  const [kbLoading, setKbLoading] = useState(false);
 
   // 展开后的图片
   const expandedImages = useMemo(
@@ -70,13 +72,13 @@ export default function FeedbackRecordDetailDrawer({
 
   // 是否需要转存
   const needsConversion = useMemo(
-    () => record !== null && open && hasFeishuImages(expandedImages),
-    [record, open, expandedImages],
+    () => record !== null && hasFeishuImages(expandedImages),
+    [record, expandedImages],
   );
 
   // 最终展示的记录：有转存结果用转存后的，否则用原始展开的
   const displayRecord = useMemo(() => {
-    if (!record || !open) return null;
+    if (!record) return null;
     if (convertedImages) {
       return { ...record, images: convertedImages };
     }
@@ -84,7 +86,41 @@ export default function FeedbackRecordDetailDrawer({
       return { ...record, images: expandedImages };
     }
     return null;
-  }, [record, open, convertedImages, needsConversion, expandedImages]);
+  }, [record, convertedImages, needsConversion, expandedImages]);
+
+  // 知识库查询 - useRequest
+  const {
+    data: kbData,
+    loading: kbLoading,
+    run: runKbQuery,
+  } = useRequest(
+    async (params: {
+      recordId: string;
+      description?: string;
+      detail?: string;
+      investigation?: string;
+      images?: Array<{ url: string; name: string }>;
+      forceRefresh?: boolean;
+    }) => {
+      const res = await apiRequest<KbQueryResult>("/feedback/export/kb-query", {
+        method: "POST",
+        data: params,
+      });
+      return (res as any).data || res;
+    },
+    {
+      manual: true,
+      onError: (err: any) => {
+        message.error("知识库查询失败: " + (err.message || "未知错误"));
+      },
+    },
+  );
+
+  // 打开抽屉时自动查缓存
+  useEffect(() => {
+    if (!displayRecord) return;
+    runKbQuery({ recordId: displayRecord.recordId });
+  }, [displayRecord, displayRecord?.recordId, runKbQuery]);
 
   // 处理飞书图片转存
   useEffect(() => {
@@ -141,7 +177,6 @@ export default function FeedbackRecordDetailDrawer({
       }
     };
 
-    // 使用 setTimeout 延迟执行，避免在 effect 中同步 setState
     const timer = setTimeout(convertImages, 0);
 
     return () => {
@@ -153,69 +188,21 @@ export default function FeedbackRecordDetailDrawer({
   // 关闭时重置状态
   const handleClose = () => {
     setConvertedImages(null);
-    setKbResults({});
-    setKbLoading(false);
     onClose();
   };
 
-  const handleKBQuery = async () => {
+  // 点击知识库查询按钮
+  const handleKBQuery = () => {
     if (!displayRecord) return;
 
-    const recordId = displayRecord.recordId;
-    if (kbResults[recordId]) return;
-
-    const parts: string[] = [];
-    if (displayRecord.description) {
-      parts.push(`描述(人、操作、现象)：${displayRecord.description}`);
-    }
-    if (displayRecord.detail) {
-      parts.push(`详细说明「现象、操作、问题」：${displayRecord.detail}`);
-    }
-    if (displayRecord.investigation) {
-      parts.push(`排查情况：${displayRecord.investigation}`);
-    }
-    if (displayRecord.images?.length > 0) {
-      const imageInfo = displayRecord.images
-        .map((img) => `[图片] ${img.name}: ${img.url}`)
-        .join("\n");
-      parts.push(`相关图片：\n${imageInfo}`);
-    }
-    const content = parts.join("\n\n");
-    if (!content) {
-      message.warning("没有可查询的内容");
-      return;
-    }
-
-    setKbLoading(true);
-    try {
-      const res = await fetch(
-        "https://test-yddoc.yingdao.com/api/agents/rpaQaAgent/generate",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Cookie: "tgw_l7_route=7c8ae90f48839c29750e1ccc76081893",
-          },
-          body: JSON.stringify({
-            messages: [{ role: "user", content }],
-          }),
-        },
-      );
-
-      if (!res.ok) {
-        throw new Error(`请求失败 (${res.status})`);
-      }
-
-      const result = await res.json();
-      setKbResults((prev) => ({
-        ...prev,
-        [recordId]: result.text || "无返回结果",
-      }));
-    } catch (err: any) {
-      message.error("知识库查询失败: " + err.message);
-    } finally {
-      setKbLoading(false);
-    }
+    runKbQuery({
+      recordId: displayRecord.recordId,
+      description: displayRecord.description,
+      detail: displayRecord.detail,
+      investigation: displayRecord.investigation,
+      images: displayRecord.images,
+      forceRefresh: true,
+    });
   };
 
   return (
@@ -223,7 +210,7 @@ export default function FeedbackRecordDetailDrawer({
       title="📋 反馈记录详情"
       placement="right"
       width="50%"
-      open={open}
+      open
       onClose={handleClose}
       extra={
         <Space>
@@ -294,15 +281,13 @@ export default function FeedbackRecordDetailDrawer({
                 🔍 知识库查询
               </Button>
 
-              {displayRecord && kbResults[displayRecord.recordId] && (
+              {kbData?.result && (
                 <Card
                   title="📖 知识库匹配结果"
                   size="small"
                   style={{ marginTop: 16 }}
                 >
-                  <MarkdownRenderer
-                    content={kbResults[displayRecord.recordId]}
-                  />
+                  <MarkdownRenderer content={kbData.result} />
                 </Card>
               )}
             </div>

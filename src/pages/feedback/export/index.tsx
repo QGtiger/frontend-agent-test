@@ -591,15 +591,16 @@ interface AnalyzeResultData {
       />
 
       {/* 记录详情 Drawer */}
-      <FeedbackRecordDetailDrawer
-        record={selectedRecord}
-        open={recordDetailOpen}
-        onClose={() => {
-          setRecordDetailOpen(false);
-          setSelectedRecord(null);
-        }}
-        form={form}
-      />
+      {recordDetailOpen && (
+        <FeedbackRecordDetailDrawer
+          record={selectedRecord}
+          onClose={() => {
+            setRecordDetailOpen(false);
+            setSelectedRecord(null);
+          }}
+          form={form}
+        />
+      )}
     </div>
   );
 }
