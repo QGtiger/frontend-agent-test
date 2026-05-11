@@ -71,7 +71,7 @@ export default async function kbQuery(c: ContextWithDb) {
   // === 2. 调用外部知识库 API ===
   log("调用外部知识库 API, recordId:", body.recordId);
   const res = await fetch(
-    "https://test-yddoc.yingdao.com/api/agents/rpaQaAgent/generate",
+    "https://yddoc.yingdao.com/api/agents/rpaQaAgent/generate",
     {
       method: "POST",
       headers: {
