@@ -13,6 +13,7 @@
   "dependencies": {
     "@ant-design/icons": "^6.1.1",
     "@lightfish/server": "0.0.20",
+    "@micro-zoe/micro-app": "1.0.0-rc.30",
     "@tailwindcss/vite": "^4.2.4",
     "ahooks": "^3.9.7",
     "ali-oss": "^6.23.0",
