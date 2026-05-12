@@ -22,8 +22,10 @@ import AnalyzeResult, {
   type FeedbackRecord,
 } from "../components/AnalyzeResult";
 import UploadToOssButton from "../components/UploadToOssButton";
+import UploadJsonToOssButton from "../components/UploadJsonToOssButton";
 import AiAnalysisDrawer from "../components/AiAnalysisDrawer";
 import FeedbackRecordDetailDrawer from "../components/FeedbackRecordDetailDrawer";
+import copy from "copy-to-clipboard";
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -310,9 +312,7 @@ export default function FeedbackExportPage() {
                 cursor: "pointer",
               }}
               onClick={(e) => {
-                navigator.clipboard.writeText(
-                  (e.currentTarget as HTMLElement).textContent || "",
-                );
+                copy((e.currentTarget as HTMLElement).textContent || "");
                 message.success("Prompt 已复制到剪贴板");
               }}
             >
@@ -415,6 +415,8 @@ interface AnalyzeResultData {
           >
             🤖 AI 分析
           </Button>
+
+          <UploadJsonToOssButton />
         </Form>
       </div>
 

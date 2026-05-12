@@ -3,6 +3,7 @@ type AppConfig = {
   SERVER_API: string;
   version: string;
   appName: string;
+  resultUrl: string;
 };
 
 export function getAppConfig(): AppConfig {

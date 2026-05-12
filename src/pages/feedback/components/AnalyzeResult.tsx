@@ -87,6 +87,24 @@ export default function AnalyzeResult({
         </Space>
       </Card>
 
+      {/* AI 分析原文 */}
+      <Collapse
+        items={[
+          {
+            key: "analysis",
+            label: "📝 AI 分析原文",
+            children: (
+              <MarkdownRenderer
+                content={result.analysis}
+                onRecordClick={handleRecordClick}
+              />
+            ),
+          },
+        ]}
+        style={{ marginBottom: 16 }}
+        defaultActiveKey={["analysis"]}
+      />
+
       {/* 高频问题 TOP */}
       {result.topIssues.length > 0 && (
         <Card title="📊 高频问题 TOP" style={{ marginBottom: 16 }}>
@@ -145,23 +163,6 @@ export default function AnalyzeResult({
           />
         </Card>
       )}
-
-      {/* AI 分析原文 */}
-      <Collapse
-        items={[
-          {
-            key: "analysis",
-            label: "📝 AI 分析原文",
-            children: (
-              <MarkdownRenderer
-                content={result.analysis}
-                onRecordClick={handleRecordClick}
-              />
-            ),
-          },
-        ]}
-        style={{ marginBottom: 16 }}
-      />
 
       {/* 反馈列表（仅在 records 存在时展示） */}
       {result.records && (
