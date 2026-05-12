@@ -11,7 +11,7 @@ export default function FloatAgent() {
       <FloatButton
         icon={<MessageOutlined />}
         type="primary"
-        style={{ right: 24, bottom: 24 }}
+        style={{ right: 24, bottom: 24, zIndex: 1060 }}
         onClick={() => setOpen(true)}
         tooltip="智能助手"
       />
