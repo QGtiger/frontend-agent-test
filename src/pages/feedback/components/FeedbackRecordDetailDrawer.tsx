@@ -16,6 +16,7 @@ import type { FormInstance } from "antd";
 import { useRequest } from "ahooks";
 import { apiRequest } from "@lightfish/server/api";
 import type { FeedbackRecord } from "./AnalyzeResult";
+import { FEISHU_DEFAULT_VALUES } from "../constants";
 import { hideLoading, showLoading } from "../../../utils/loading";
 import KbQueryCard from "./KbQueryCard";
 import KbFeedbackForm from "./KbFeedbackForm";
@@ -178,8 +179,8 @@ export default function FeedbackRecordDetailDrawer({
               data: {
                 url: img.url,
                 name: img.name,
-                appId: values?.appId,
-                appSecret: values?.appSecret,
+                appId: values?.appId || FEISHU_DEFAULT_VALUES.appId,
+                appSecret: values?.appSecret || FEISHU_DEFAULT_VALUES.appSecret,
               },
             },
           );

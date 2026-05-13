@@ -26,20 +26,12 @@ import UploadJsonToOssButton from "../components/UploadJsonToOssButton";
 import AiAnalysisDrawer from "../components/AiAnalysisDrawer";
 import FeedbackRecordDetailDrawer from "../components/FeedbackRecordDetailDrawer";
 import copy from "copy-to-clipboard";
+import { FEISHU_DEFAULT_VALUES } from "../constants";
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
 
 type ProgressStep = "idle" | "token" | "fetching" | "done" | "error";
-
-const DEFAULT_VALUES = {
-  appId: "cli_a7a6ca3bf7dad00b",
-  appSecret: "sZq2GflDZ0OVNhbqbNyhybeCfStGYoel",
-  appToken: "GhgNbqLihaYvs8sUtmkc9MZdnPc",
-  tableId: "tblMqq16QOGraL2C",
-  viewId: "vewQpaj4oq",
-  maxRecords: 100,
-};
 
 export default function FeedbackExportPage() {
   const [form] = Form.useForm();
@@ -240,7 +232,11 @@ export default function FeedbackExportPage() {
           📥 飞书数据导出
         </Title>
 
-        <Form form={form} layout="vertical" initialValues={DEFAULT_VALUES}>
+        <Form
+          form={form}
+          layout="vertical"
+          initialValues={FEISHU_DEFAULT_VALUES}
+        >
           <Card title="飞书配置" style={{ marginBottom: 16 }}>
             <Form.Item
               name="appId"
