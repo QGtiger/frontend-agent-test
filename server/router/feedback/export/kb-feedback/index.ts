@@ -13,6 +13,8 @@ import { kbFeedback } from "../../../../schema/index.js";
  *   score: number;       // 1-10
  *   reason?: string;     // 打分理由和修改建议
  *   supplement?: string; // 其他增量补充
+ *   aiSuggestion?: string;  // AI 建议
+ *   kbSuggestion?: string;  // 知识库建议
  * }
  *
  * 返回：
@@ -28,6 +30,8 @@ export default async function createKbFeedback(c: ContextWithDb) {
     score: number;
     reason?: string;
     supplement?: string;
+    aiSuggestion?: string;
+    kbSuggestion?: string;
   }>();
 
   if (!body.kbCacheId) {
@@ -58,6 +62,8 @@ export default async function createKbFeedback(c: ContextWithDb) {
       score: body.score,
       reason: body.reason || null,
       supplement: body.supplement || null,
+      aiSuggestion: body.aiSuggestion || null,
+      kbSuggestion: body.kbSuggestion || null,
     })
     .returning({
       id: kbFeedback.id,

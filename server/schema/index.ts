@@ -130,6 +130,12 @@ export const kbFeedback = appSchema.table("kb_feedback", {
   // 其他增量补充
   supplement: text("supplement"),
 
+  // AI 建议
+  aiSuggestion: text("ai_suggestion"),
+
+  // 知识库建议
+  kbSuggestion: text("kb_suggestion"),
+
   // 创建时间
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

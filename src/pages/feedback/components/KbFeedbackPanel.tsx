@@ -33,6 +33,8 @@ interface FeedbackItem {
   score: number;
   reason: string | null;
   supplement: string | null;
+  aiSuggestion: string | null;
+  kbSuggestion: string | null;
   createdAt: string;
 }
 
@@ -70,8 +72,8 @@ export default function KbFeedbackPanel({
     async (values: {
       group: string;
       score: number;
-      reason?: string;
-      supplement?: string;
+      aiSuggestion?: string;
+      kbSuggestion?: string;
     }) => {
       const res = await apiRequest("/feedback/export/kb-feedback", {
         method: "POST",
@@ -190,23 +192,23 @@ export default function KbFeedbackPanel({
                 </div>
                 {isExpanded && (
                   <div style={{ marginTop: 4, fontSize: 13 }}>
-                    {item.reason && (
+                    {item.aiSuggestion && (
                       <div style={{ marginBottom: 4 }}>
                         <Text strong style={{ fontSize: 12 }}>
-                          理由/建议：
+                          AI 建议：
                         </Text>
                         <Text style={{ fontSize: 12, whiteSpace: "pre-wrap" }}>
-                          {item.reason}
+                          {item.aiSuggestion}
                         </Text>
                       </div>
                     )}
-                    {item.supplement && (
+                    {item.kbSuggestion && (
                       <div>
                         <Text strong style={{ fontSize: 12 }}>
-                          补充：
+                          知识库建议：
                         </Text>
                         <Text style={{ fontSize: 12, whiteSpace: "pre-wrap" }}>
-                          {item.supplement}
+                          {item.kbSuggestion}
                         </Text>
                       </div>
                     )}
@@ -247,12 +249,12 @@ export default function KbFeedbackPanel({
           <Rate count={10} />
         </Form.Item>
 
-        <Form.Item name="reason" label="打分理由和修改建议">
-          <TextArea rows={3} placeholder="请输入打分理由和修改建议" />
+        <Form.Item name="aiSuggestion" label="AI 建议">
+          <TextArea rows={3} placeholder="请输入 AI 建议" />
         </Form.Item>
 
-        <Form.Item name="supplement" label="其他增量补充">
-          <TextArea rows={3} placeholder="请输入其他补充内容" />
+        <Form.Item name="kbSuggestion" label="知识库建议">
+          <TextArea rows={3} placeholder="请输入知识库建议" />
         </Form.Item>
 
         <Form.Item>

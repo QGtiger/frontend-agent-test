@@ -18,6 +18,8 @@ import { eq, desc } from "drizzle-orm";
  *     score: number;
  *     reason: string | null;
  *     supplement: string | null;
+ *     aiSuggestion: string | null;
+ *     kbSuggestion: string | null;
  *     createdAt: string;
  *   }>
  * }
@@ -41,6 +43,8 @@ export default async function kbFeedbackList(c: ContextWithDb) {
       score: kbFeedback.score,
       reason: kbFeedback.reason,
       supplement: kbFeedback.supplement,
+      aiSuggestion: kbFeedback.aiSuggestion,
+      kbSuggestion: kbFeedback.kbSuggestion,
       createdAt: kbFeedback.createdAt,
     })
     .from(kbFeedback)
