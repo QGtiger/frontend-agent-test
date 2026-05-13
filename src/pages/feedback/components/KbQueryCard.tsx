@@ -1,15 +1,13 @@
 import { useState } from "react";
-import { Card, Typography, Dropdown, message } from "antd";
+import { Card, Typography, message } from "antd";
 import copy from "copy-to-clipboard";
 import {
   DownOutlined,
   UpOutlined,
-  EllipsisOutlined,
   MessageOutlined,
   EyeOutlined,
   BugOutlined,
 } from "@ant-design/icons";
-import type { MenuProps } from "antd";
 import MarkdownRenderer from "../MarkdownRenderer";
 
 const { Text } = Typography;
@@ -33,40 +31,14 @@ export default function KbQueryCard({
 }: KbQueryCardProps) {
   const [expanded, setExpanded] = useState(false);
 
-  const menuItems: MenuProps["items"] = [
-    {
-      key: "feedback",
-      icon: <MessageOutlined />,
-      label: "反馈",
-      onClick: (e) => {
-        e.domEvent.stopPropagation();
-        onFeedback?.(id);
-      },
-    },
-    {
-      key: "view-feedback",
-      icon: <EyeOutlined />,
-      label: "查看反馈",
-      onClick: (e) => {
-        e.domEvent.stopPropagation();
-        onViewFeedback?.(id);
-      },
-    },
-    {
-      key: "debug",
-      icon: <BugOutlined />,
-      label: "调试反馈",
-      onClick: (e) => {
-        e.domEvent.stopPropagation();
-        if (curlCommand) {
-          copy(curlCommand);
-          message.success("已复制 curl 命令，可发给产研调试");
-        } else {
-          message.warning("暂无 curl 命令");
-        }
-      },
-    },
-  ];
+  const handleDebug = () => {
+    if (curlCommand) {
+      copy(curlCommand);
+      message.success("已复制 curl 命令，可发给产研调试");
+    } else {
+      message.warning("暂无 curl 命令");
+    }
+  };
 
   return (
     <Card key={id} size="small" style={{ marginBottom: 8 }}>
@@ -83,21 +55,28 @@ export default function KbQueryCard({
           {new Date(createdAt).toLocaleString("zh-CN")}
         </Text>
         <div
-          style={{ display: "flex", alignItems: "center", gap: 4 }}
+          className="flex gap-2 items-center"
           onClick={(e) => e.stopPropagation()}
         >
-          <Dropdown menu={{ items: menuItems }} trigger={["click"]}>
-            <span
-              style={{
-                fontSize: 16,
-                color: "#999",
-                cursor: "pointer",
-                padding: "0 4px",
-              }}
-            >
-              <EllipsisOutlined />
-            </span>
-          </Dropdown>
+          {/* 反馈 */}
+          <MessageOutlined
+            title="反馈"
+            style={{ fontSize: 14, color: "#1677ff", cursor: "pointer" }}
+            onClick={() => onFeedback?.(id)}
+          />
+          {/* 查看反馈 */}
+          <EyeOutlined
+            title="查看反馈"
+            style={{ fontSize: 14, color: "#52c41a", cursor: "pointer" }}
+            onClick={() => onViewFeedback?.(id)}
+          />
+          {/* 调试反馈 */}
+          <BugOutlined
+            title="调试反馈"
+            style={{ fontSize: 14, color: "#faad14", cursor: "pointer" }}
+            onClick={handleDebug}
+          />
+          {/* 展开/收起 */}
           <span style={{ fontSize: 12, color: "#999" }}>
             {expanded ? <UpOutlined /> : <DownOutlined />}
           </span>
