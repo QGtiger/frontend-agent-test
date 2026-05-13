@@ -19,8 +19,7 @@ import type { FeedbackRecord } from "./AnalyzeResult";
 import { FEISHU_DEFAULT_VALUES } from "../constants";
 import { hideLoading, showLoading } from "../../../utils/loading";
 import KbQueryCard from "./KbQueryCard";
-import KbFeedbackForm from "./KbFeedbackForm";
-import KbFeedbackList from "./KbFeedbackList";
+import KbFeedbackPanel from "./KbFeedbackPanel";
 
 const { Text } = Typography;
 
@@ -217,9 +216,8 @@ export default function FeedbackRecordDetailDrawer({
     onClose();
   };
 
-  // 第三列模式：form = 反馈表单, list = 查看反馈列表, null = 不显示
-  const [thirdColumn, setThirdColumn] = useState<{
-    mode: "form" | "list";
+  // 第三列：反馈面板（列表 + 表单）
+  const [feedbackPanel, setFeedbackPanel] = useState<{
     id: number;
     createdAt: string;
     result: string;
@@ -339,16 +337,14 @@ export default function FeedbackRecordDetailDrawer({
                       createdAt={item.createdAt}
                       curlCommand={item.curlCommand}
                       onFeedback={(kbCacheId) => {
-                        setThirdColumn({
-                          mode: "form",
+                        setFeedbackPanel({
                           id: kbCacheId,
                           createdAt: item.createdAt,
                           result: item.result,
                         });
                       }}
                       onViewFeedback={(kbCacheId) => {
-                        setThirdColumn({
-                          mode: "list",
+                        setFeedbackPanel({
                           id: kbCacheId,
                           createdAt: item.createdAt,
                           result: item.result,
@@ -360,8 +356,8 @@ export default function FeedbackRecordDetailDrawer({
               </div>
             </div>
 
-            {/* 第三列：反馈表单 / 查看反馈列表（互斥） */}
-            {thirdColumn && (
+            {/* 第三列：反馈面板（列表 + 表单） */}
+            {feedbackPanel && (
               <div
                 style={{
                   width: 360,
@@ -381,44 +377,23 @@ export default function FeedbackRecordDetailDrawer({
                   }}
                 >
                   <Text strong style={{ fontSize: 14 }}>
-                    {thirdColumn.mode === "form"
-                      ? "💬 反馈评价"
-                      : "📋 查看反馈"}
+                    💬 反馈
                   </Text>
                   <Button
                     type="text"
                     size="small"
                     icon={<CloseOutlined />}
-                    onClick={() => setThirdColumn(null)}
+                    onClick={() => setFeedbackPanel(null)}
                   />
                 </div>
                 <div style={{ flex: 1, overflow: "auto" }}>
-                  {thirdColumn.mode === "form" ? (
-                    <KbFeedbackForm
-                      kbCacheId={thirdColumn.id}
-                      kbCreatedAt={thirdColumn.createdAt}
-                      kbSummary={thirdColumn.result
-                        .replace(/[#*`[\]]/g, "")
-                        .slice(0, 200)}
-                      onSuccess={() => {
-                        // 提交成功后切换到查看反馈列表
-                        setThirdColumn({
-                          mode: "list",
-                          id: thirdColumn.id,
-                          createdAt: thirdColumn.createdAt,
-                          result: thirdColumn.result,
-                        });
-                      }}
-                    />
-                  ) : (
-                    <KbFeedbackList
-                      kbCacheId={thirdColumn.id}
-                      kbCreatedAt={thirdColumn.createdAt}
-                      kbSummary={thirdColumn.result
-                        .replace(/[#*`[\]]/g, "")
-                        .slice(0, 200)}
-                    />
-                  )}
+                  <KbFeedbackPanel
+                    kbCacheId={feedbackPanel.id}
+                    kbCreatedAt={feedbackPanel.createdAt}
+                    kbSummary={feedbackPanel.result
+                      .replace(/[#*`[\]]/g, "")
+                      .slice(0, 200)}
+                  />
                 </div>
               </div>
             )}

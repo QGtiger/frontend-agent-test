@@ -54,28 +54,24 @@ export default function KbQueryCard({
         <Text type="secondary" style={{ fontSize: 12 }}>
           {new Date(createdAt).toLocaleString("zh-CN")}
         </Text>
-        <div
-          className="flex gap-2 items-center"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* 反馈 */}
-          <MessageOutlined
-            title="反馈"
-            style={{ fontSize: 14, color: "#1677ff", cursor: "pointer" }}
-            onClick={() => onFeedback?.(id)}
-          />
-          {/* 查看反馈 */}
-          <EyeOutlined
-            title="查看反馈"
-            style={{ fontSize: 14, color: "#52c41a", cursor: "pointer" }}
-            onClick={() => onViewFeedback?.(id)}
-          />
-          {/* 调试反馈 */}
-          <BugOutlined
-            title="调试反馈"
-            style={{ fontSize: 14, color: "#faad14", cursor: "pointer" }}
-            onClick={handleDebug}
-          />
+        <div className="flex gap-2 ">
+          <div
+            className="flex gap-2 items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 反馈 */}
+            <MessageOutlined
+              title="反馈"
+              style={{ fontSize: 14, color: "#1677ff", cursor: "pointer" }}
+              onClick={() => onFeedback?.(id)}
+            />
+            {/* 调试反馈 */}
+            <BugOutlined
+              title="调试反馈"
+              style={{ fontSize: 14, color: "#faad14", cursor: "pointer" }}
+              onClick={handleDebug}
+            />
+          </div>
           {/* 展开/收起 */}
           <span style={{ fontSize: 12, color: "#999" }}>
             {expanded ? <UpOutlined /> : <DownOutlined />}
