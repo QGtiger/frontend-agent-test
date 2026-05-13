@@ -29,11 +29,17 @@ export default function MarkdownRenderer({
       /\[([^\]]+)\]\(record:\/\/([^)]+)\)/g,
       (_, text, recordId) => {
         return `<a href="#" data-record-id="${recordId}" class="record-link">${text}</a>`;
-      }
+      },
     );
 
     // 使用 marked 渲染 Markdown 为 HTML
     html = marked.parse(html, { async: false }) as string;
+
+    // 给所有非 record-link 的 <a> 标签加上 target="_blank"
+    html = html.replace(
+      /<a\s+(?!([^>]*\s)data-record-id)/gi,
+      '<a target="_blank" rel="noopener noreferrer" ',
+    );
 
     return html;
   }, [content]);
