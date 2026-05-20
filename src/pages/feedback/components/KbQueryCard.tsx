@@ -5,8 +5,8 @@ import {
   DownOutlined,
   UpOutlined,
   MessageOutlined,
-  EyeOutlined,
   BugOutlined,
+  LinkOutlined,
 } from "@ant-design/icons";
 import MarkdownRenderer from "../MarkdownRenderer";
 
@@ -17,8 +17,8 @@ interface KbQueryCardProps {
   result: string;
   createdAt: string;
   curlCommand?: string | null;
+  traceUrl?: string | null;
   onFeedback?: (kbCacheId: number) => void;
-  onViewFeedback?: (kbCacheId: number) => void;
 }
 
 export default function KbQueryCard({
@@ -26,8 +26,8 @@ export default function KbQueryCard({
   result,
   createdAt,
   curlCommand,
+  traceUrl,
   onFeedback,
-  onViewFeedback,
 }: KbQueryCardProps) {
   const [expanded, setExpanded] = useState(false);
 
@@ -37,6 +37,14 @@ export default function KbQueryCard({
       message.success("已复制 curl 命令，可发给产研调试");
     } else {
       message.warning("暂无 curl 命令");
+    }
+  };
+
+  const handleTrace = () => {
+    if (traceUrl) {
+      window.open(traceUrl, "_blank");
+    } else {
+      message.warning("暂无追踪链接");
     }
   };
 
@@ -59,6 +67,14 @@ export default function KbQueryCard({
             className="flex gap-2 items-center"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* 追踪 */}
+            {traceUrl && (
+              <LinkOutlined
+                title="追踪"
+                style={{ fontSize: 14, color: "#52c41a", cursor: "pointer" }}
+                onClick={handleTrace}
+              />
+            )}
             {/* 反馈 */}
             <MessageOutlined
               title="反馈"

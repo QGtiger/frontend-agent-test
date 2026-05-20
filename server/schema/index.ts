@@ -104,6 +104,9 @@ export const kbCache = appSchema.table("kb_cache", {
   // 等效 curl 命令（用于研发调试）
   curlCommand: text("curl_command"),
 
+  // Langfuse 追踪链接（用于研发调试）
+  traceUrl: text("trace_url"),
+
   // 创建时间
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

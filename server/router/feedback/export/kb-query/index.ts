@@ -96,6 +96,10 @@ export default async function kbQuery(c: ContextWithDb) {
   log("调用外部知识库 API, 返回结果:", result.text, JSON.stringify(result));
   const resultText = result.text || "无返回结果";
 
+  const traceId = result.traceId;
+
+  const traceUrl = `https://langfuse.shadow-rpa.net/project/cmjzfpet700440z07gpp9mv1u/traces?search=${traceId}`;
+
   // === 4. 写入数据库（新增一条记录） ===
   const [inserted] = await db
     .insert(kbCache)
@@ -104,6 +108,7 @@ export default async function kbQuery(c: ContextWithDb) {
       queryContent: content,
       result: resultText,
       curlCommand,
+      traceUrl,
     })
     .returning({
       id: kbCache.id,

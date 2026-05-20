@@ -38,6 +38,7 @@ interface KbQueryItem {
   id: number;
   result: string;
   curlCommand?: string | null;
+  traceUrl?: string | null;
   createdAt: string;
 }
 
@@ -361,14 +362,8 @@ export default function FeedbackRecordDetailDrawer({
                       result={item.result}
                       createdAt={item.createdAt}
                       curlCommand={item.curlCommand}
+                      traceUrl={item.traceUrl}
                       onFeedback={(kbCacheId) => {
-                        setFeedbackPanel({
-                          id: kbCacheId,
-                          createdAt: item.createdAt,
-                          result: item.result,
-                        });
-                      }}
-                      onViewFeedback={(kbCacheId) => {
                         setFeedbackPanel({
                           id: kbCacheId,
                           createdAt: item.createdAt,
