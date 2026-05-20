@@ -11,10 +11,15 @@ import {
   List,
   Typography,
 } from "antd";
-import { InboxOutlined, CloseOutlined } from "@ant-design/icons";
+import {
+  InboxOutlined,
+  CloseOutlined,
+  ShareAltOutlined,
+} from "@ant-design/icons";
 import type { FormInstance } from "antd";
 import { useRequest } from "ahooks";
 import { apiRequest } from "@lightfish/server/api";
+import copy from "copy-to-clipboard";
 import type { FeedbackRecord } from "./AnalyzeResult";
 import { FEISHU_DEFAULT_VALUES } from "../constants";
 import { hideLoading, showLoading } from "../../../utils/loading";
@@ -245,6 +250,15 @@ export default function FeedbackRecordDetailDrawer({
       onClose={handleClose}
       extra={
         <Space>
+          <Button
+            icon={<ShareAltOutlined />}
+            onClick={() => {
+              copy(window.location.href);
+              message.success("链接已复制");
+            }}
+          >
+            分享
+          </Button>
           <Button onClick={handleClose}>关闭</Button>
         </Space>
       }

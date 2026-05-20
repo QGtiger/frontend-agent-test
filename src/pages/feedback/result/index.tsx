@@ -1,6 +1,6 @@
-import { useState } from "react";
 import { Spin, Result, Button, message } from "antd";
-import { useRequest } from "ahooks";
+import { useCreation, useRequest } from "ahooks";
+import { useSearchParams } from "react-router-dom";
 import AnalyzeResult, {
   type AnalyzeResultData,
   type FeedbackRecord,
@@ -10,11 +10,10 @@ import { getAppConfig } from "../../../utils";
 import { getServerUrl } from "@lightfish/server/api";
 
 export default function FeedbackResultPage() {
-  // 记录详情 Drawer
-  const [recordDetailOpen, setRecordDetailOpen] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<FeedbackRecord | null>(
-    null,
-  );
+  // 记录详情 Drawer — recordId 放在 URL 上，支持分享和刷新保持
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedRecordId = searchParams.get("recordId") || undefined;
+  const recordDetailOpen = !!selectedRecordId;
 
   const {
     data: uploadResult,
@@ -75,13 +74,21 @@ export default function FeedbackResultPage() {
     },
   );
 
+  // 从 records 中查找当前选中的记录
+  const selectedRecord = useCreation<FeedbackRecord | null>(() => {
+    if (!selectedRecordId || !uploadResult?.records) return null;
+    return (
+      uploadResult.records.find((r) => r.recordId === selectedRecordId) || null
+    );
+  }, [selectedRecordId, uploadResult?.records]);
+
   const handleRecordClick = (recordId: string, record?: FeedbackRecord) => {
     if (!record) {
       message.info(`记录 ${recordId} 的详细数据未包含在 JSON 中`);
       return;
     }
-    setSelectedRecord(record);
-    setRecordDetailOpen(true);
+    // 将 recordId 放到 URL 上
+    setSearchParams({ recordId });
   };
 
   if (loading) {
@@ -137,8 +144,8 @@ export default function FeedbackResultPage() {
         <FeedbackRecordDetailDrawer
           record={selectedRecord}
           onClose={() => {
-            setRecordDetailOpen(false);
-            setSelectedRecord(null);
+            // 清除 URL 上的 recordId 参数
+            setSearchParams({});
           }}
         />
       )}
