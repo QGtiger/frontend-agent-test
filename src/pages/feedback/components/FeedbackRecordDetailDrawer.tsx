@@ -114,6 +114,17 @@ export default function FeedbackRecordDetailDrawer({
     },
     {
       manual: true,
+      onSuccess: (data) => {
+        // 列表加载完成后，默认选中第一个
+        if (data?.list?.length > 0) {
+          const first = data.list[0];
+          setFeedbackPanel({
+            id: first.id,
+            createdAt: first.createdAt,
+            result: first.result,
+          });
+        }
+      },
     },
   );
 
