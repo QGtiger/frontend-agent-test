@@ -10,6 +10,7 @@ import { kbCache } from "../../../../schema/index.js";
  * 请求体：
  * {
  *   recordId: string;
+ *   system?: string;      // 系统提示词（可选，默认使用内置提示词）
  *   description?: string;
  *   detail?: string;
  *   investigation?: string;
@@ -26,6 +27,8 @@ import { kbCache } from "../../../../schema/index.js";
 export default async function kbQuery(c: ContextWithDb) {
   const body = await c.req.json<{
     recordId: string;
+    env?: string;
+    system?: string;
     description?: string;
     detail?: string;
     investigation?: string;
@@ -68,32 +71,44 @@ export default async function kbQuery(c: ContextWithDb) {
     throw new Error("没有可查询的内容");
   }
 
+  // 系统提示词（默认值）
+  const systemPrompt = body.system;
+
+  // 知识库 API 地址映射（按环境）
+  const KB_API_URLS: Record<string, string> = {
+    staging: "https://staging-yddoc.yingdao.com/custom/chat/rpaQaAgent",
+    online: "https://yddoc.yingdao.com/custom/chat/rpaQaAgent",
+  };
+  const apiUrl = KB_API_URLS[body.env || "staging"] || KB_API_URLS.staging;
+
   // === 2. 生成等效 curl 命令 ===
-  const curlCommand = `curl -X POST 'https://yddoc.yingdao.com/api/agents/rpaQaAgent/generate' \\\n  -H 'Content-Type: application/json' \\\n  -H 'Cookie: tgw_l7_route=7c8ae90f48839c29750e1ccc76081893' \\\n  -d '${JSON.stringify({ messages: [{ role: "user", content }] })}'`;
+  const curlCommand = `curl -X POST '${apiUrl}' \\\n  -H 'Content-Type: application/json' \\\n  -d '${JSON.stringify({ system: systemPrompt, messages: [{ role: "user", content }] })}'`;
   log("等效 curl 命令:\n", curlCommand);
 
   // === 3. 调用外部知识库 API ===
-  log("调用外部知识库 API, recordId:", body.recordId);
-  const res = await fetch(
-    "https://yddoc.yingdao.com/api/agents/rpaQaAgent/generate",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: "tgw_l7_route=7c8ae90f48839c29750e1ccc76081893",
-      },
-      body: JSON.stringify({
-        messages: [{ role: "user", content }],
-      }),
-    },
+  log(
+    "调用外部知识库 API, recordId:",
+    body.recordId,
+    "env:",
+    body.env || "staging",
   );
+  const res = await fetch(apiUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      system: systemPrompt,
+      messages: [{ role: "user", content }],
+    }),
+  });
 
   if (!res.ok) {
     throw new Error(`知识库查询失败 (${res.status})`);
   }
 
-  const result = await res.json();
-  log("调用外部知识库 API, 返回结果:", result.text, JSON.stringify(result));
+  const { data: result } = await res.json();
+  log("调用外部知识库 API, 返回结果:", result.text);
   const resultText = result.text || "无返回结果";
 
   const traceId = result.traceId;

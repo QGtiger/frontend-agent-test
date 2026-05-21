@@ -10,6 +10,9 @@ import {
   message,
   List,
   Typography,
+  Modal,
+  Input,
+  Select,
 } from "antd";
 import {
   InboxOutlined,
@@ -66,6 +69,47 @@ function hasFeishuImages(images: FeedbackRecord["images"]): boolean {
       img.url.includes("open.feishu.cn") || img.url.includes("feishu.cn"),
   );
 }
+
+const DefaultSystemPrompt = `你是影刀RPA的产品文档助手。你只基于文档知识库回答问题，不编造信息。
+
+## 核心原则
+- 知之为知之，不知为不知。没有可靠依据时，坦诚说"根据现有文档未找到相关信息"，并给出可能有帮助的参考文档链接。
+- 绝不基于猜测或通用知识编造影刀产品相关的具体功能描述、操作步骤或API用法。
+- 回答简洁直接，控制在3-5句话以内。用户需要细节时会追问。
+
+## 工作流程
+1. 收到问题后，用 documentSearchTool 搜索知识库。
+2. 判断搜索结果与问题的相关性：
+   - 高相关：直接基于结果回答。
+   - 低相关或无结果：告知用户未找到准确答案，列出可能相关的文档链接供参考。
+   - 工具报错：告知用户"文档搜索暂时不可用，请稍后再试"。
+
+## 回答格式
+固定结构，缺省则跳过：
+
+**结论**（1-3句话直接回答问题）
+
+关键细节或步骤（仅在必要时展开，不超过5点）
+
+相关图片/视频（如果搜索结果的 media 字段中有）
+- 图片：![描述](URL)
+- 视频：<video src="URL" controls></video>
+
+参考文档：
+- [文档名称](docUrl)
+
+## 媒体资源
+搜索结果的 media 字段包含 images 和 videos 数组。如果非空，在回答相关位置展示，不要遗漏。
+
+## 文档链接
+- 每次回答末尾必须附上参考文档链接（来自搜索结果的 metadata.docUrl）。
+- 格式：Markdown 链接 [文档名称](URL)。
+- 即使回答"未找到相关信息"，也要列出搜索到的最相关文档链接供用户自行查阅。
+
+## 边界
+- 只回答影刀产品相关问题。无关问题礼貌拒绝。
+- 不要把多个搜索结果全部堆砌，只用最相关的1-2条。
+- 使用中文回答。`;
 
 export default function FeedbackRecordDetailDrawer({
   record,
@@ -133,6 +177,8 @@ export default function FeedbackRecordDetailDrawer({
   const { loading: kbCreateLoading, run: runKbCreate } = useRequest(
     async (params: {
       recordId: string;
+      env?: string;
+      system?: string;
       description?: string;
       detail?: string;
       investigation?: string;
@@ -240,12 +286,26 @@ export default function FeedbackRecordDetailDrawer({
     result: string;
   } | null>(null);
 
+  // 知识库查询配置弹窗
+  const [systemPromptModalOpen, setSystemPromptModalOpen] = useState(false);
+  const [systemPrompt, setSystemPrompt] = useState(DefaultSystemPrompt);
+  const [kbEnv, setKbEnv] = useState("staging");
+
   // 点击知识库查询按钮
   const handleKBQuery = () => {
     if (!displayRecord) return;
+    // 弹出配置弹窗
+    setSystemPromptModalOpen(true);
+  };
 
+  // 确认查询
+  const handleConfirmQuery = () => {
+    if (!displayRecord) return;
+    setSystemPromptModalOpen(false);
     runKbCreate({
       recordId: displayRecord.recordId,
+      env: kbEnv,
+      system: systemPrompt,
       description: displayRecord.description,
       detail: displayRecord.detail,
       investigation: displayRecord.investigation,
@@ -420,6 +480,46 @@ export default function FeedbackRecordDetailDrawer({
           </div>
         )}
       </Spin>
+
+      {/* 知识库查询配置弹窗 */}
+      <Modal
+        title="🔍 知识库查询配置"
+        open={systemPromptModalOpen}
+        onOk={handleConfirmQuery}
+        onCancel={() => setSystemPromptModalOpen(false)}
+        okText="开始查询"
+        cancelText="取消"
+        width={700}
+      >
+        <div
+          style={{
+            marginBottom: 16,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <Text strong>环境选择：</Text>
+          <Select
+            value={kbEnv}
+            onChange={setKbEnv}
+            style={{ width: 160 }}
+            options={[
+              { value: "staging", label: "Staging" },
+              { value: "online", label: "Online" },
+            ]}
+          />
+        </div>
+        <div style={{ marginBottom: 8 }}>
+          <Text strong>系统提示词（System Prompt）</Text>
+        </div>
+        <Input.TextArea
+          value={systemPrompt}
+          onChange={(e) => setSystemPrompt(e.target.value)}
+          rows={20}
+          style={{ fontFamily: "monospace", fontSize: 13 }}
+        />
+      </Modal>
     </Drawer>
   );
 }
