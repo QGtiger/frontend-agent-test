@@ -177,12 +177,9 @@ export default function FeedbackRecordDetailDrawer({
   const { loading: kbCreateLoading, run: runKbCreate } = useRequest(
     async (params: {
       recordId: string;
+      content: string;
       env?: string;
       system?: string;
-      description?: string;
-      detail?: string;
-      investigation?: string;
-      images?: Array<{ url: string; name: string }>;
     }) => {
       const res = await apiRequest<KbQueryItem>("/feedback/export/kb-query", {
         method: "POST",
@@ -290,10 +287,33 @@ export default function FeedbackRecordDetailDrawer({
   const [systemPromptModalOpen, setSystemPromptModalOpen] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState(DefaultSystemPrompt);
   const [kbEnv, setKbEnv] = useState("staging");
+  const [kbContent, setKbContent] = useState("");
 
   // 点击知识库查询按钮
   const handleKBQuery = () => {
     if (!displayRecord) return;
+
+    // 前端拼接查询内容
+    const parts: string[] = [];
+    if (displayRecord.description) {
+      parts.push(`描述(人、操作、现象)：${displayRecord.description}`);
+    }
+    if (displayRecord.detail) {
+      parts.push(`详细说明「现象、操作、问题」：${displayRecord.detail}`);
+    }
+    if (displayRecord.investigation) {
+      parts.push(`排查情况：${displayRecord.investigation}`);
+    }
+    const images = displayRecord.images;
+    if (images && images.length > 0) {
+      const imageInfo = images
+        .map((img) => `[图片] ${img.name}: ${img.url}`)
+        .join("\n");
+      parts.push(`相关图片：\n${imageInfo}`);
+    }
+    const content = parts.join("\n\n");
+
+    setKbContent(content);
     // 弹出配置弹窗
     setSystemPromptModalOpen(true);
   };
@@ -301,15 +321,16 @@ export default function FeedbackRecordDetailDrawer({
   // 确认查询
   const handleConfirmQuery = () => {
     if (!displayRecord) return;
+    if (!kbContent?.trim()) {
+      message.warning("请输入查询内容");
+      return;
+    }
     setSystemPromptModalOpen(false);
     runKbCreate({
       recordId: displayRecord.recordId,
+      content: kbContent,
       env: kbEnv,
       system: systemPrompt,
-      description: displayRecord.description,
-      detail: displayRecord.detail,
-      investigation: displayRecord.investigation,
-      images: displayRecord.images,
     });
   };
 
@@ -511,6 +532,15 @@ export default function FeedbackRecordDetailDrawer({
           />
         </div>
         <div style={{ marginBottom: 8 }}>
+          <Text strong>查询内容（Content）</Text>
+        </div>
+        <Input.TextArea
+          value={kbContent}
+          onChange={(e) => setKbContent(e.target.value)}
+          rows={8}
+          style={{ fontFamily: "monospace", fontSize: 13 }}
+        />
+        <div style={{ marginBottom: 8, marginTop: 16 }}>
           <Text strong>系统提示词（System Prompt）</Text>
         </div>
         <Input.TextArea

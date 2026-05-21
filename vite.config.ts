@@ -11,7 +11,7 @@ function normalizeBase(raw: string | undefined): string {
 
 function defineAppConfig() {
   return {
-    SERVER_API: "http://localhost:3000",
+    SERVER_API: "http://172.16.21.242:3000",
     resultUrl:
       "https://winrobot-pub-a-cos.yingdao.com/static/report-upload/1778566396051-958fe8f5-d38a-447d-9ea2-9e21ba5f85e7.json",
   };

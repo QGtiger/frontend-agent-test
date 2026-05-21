@@ -10,11 +10,9 @@ import { kbCache } from "../../../../schema/index.js";
  * 请求体：
  * {
  *   recordId: string;
- *   system?: string;      // 系统提示词（可选，默认使用内置提示词）
- *   description?: string;
- *   detail?: string;
- *   investigation?: string;
- *   images?: Array<{ url: string; name: string }>;
+ *   content: string;       // 查询内容（前端已拼接好，可二次编辑）
+ *   env?: string;          // 环境：staging | online，默认 staging
+ *   system?: string;       // 系统提示词（可选，默认使用内置提示词）
  * }
  *
  * 返回：
@@ -27,16 +25,17 @@ import { kbCache } from "../../../../schema/index.js";
 export default async function kbQuery(c: ContextWithDb) {
   const body = await c.req.json<{
     recordId: string;
+    content: string;
     env?: string;
     system?: string;
-    description?: string;
-    detail?: string;
-    investigation?: string;
-    images?: Array<{ url: string; name: string }>;
   }>();
 
   if (!body.recordId?.trim()) {
     throw new Error("缺少必要参数 recordId");
+  }
+
+  if (!body.content?.trim()) {
+    throw new Error("缺少查询内容 content");
   }
 
   const db = c.get("db");
@@ -47,31 +46,7 @@ export default async function kbQuery(c: ContextWithDb) {
   const log = (msg: string, ...args: any[]) =>
     console.log(`[feedback/export/kb-query] ${msg}`, ...args);
 
-  // === 1. 拼接查询内容 ===
-  const parts: string[] = [];
-  if (body.description) {
-    parts.push(`描述(人、操作、现象)：${body.description}`);
-  }
-  if (body.detail) {
-    parts.push(`详细说明「现象、操作、问题」：${body.detail}`);
-  }
-  if (body.investigation) {
-    parts.push(`排查情况：${body.investigation}`);
-  }
-  const images = body.images;
-  if (images && images.length > 0) {
-    const imageInfo = images
-      .map((img) => `[图片] ${img.name}: ${img.url}`)
-      .join("\n");
-    parts.push(`相关图片：\n${imageInfo}`);
-  }
-  const content = parts.join("\n\n");
-
-  if (!content) {
-    throw new Error("没有可查询的内容");
-  }
-
-  // 系统提示词（默认值）
+  const content = body.content;
   const systemPrompt = body.system;
 
   // 知识库 API 地址映射（按环境）
@@ -81,11 +56,11 @@ export default async function kbQuery(c: ContextWithDb) {
   };
   const apiUrl = KB_API_URLS[body.env || "staging"] || KB_API_URLS.staging;
 
-  // === 2. 生成等效 curl 命令 ===
+  // === 1. 生成等效 curl 命令 ===
   const curlCommand = `curl -X POST '${apiUrl}' \\\n  -H 'Content-Type: application/json' \\\n  -d '${JSON.stringify({ system: systemPrompt, messages: [{ role: "user", content }] })}'`;
   log("等效 curl 命令:\n", curlCommand);
 
-  // === 3. 调用外部知识库 API ===
+  // === 2. 调用外部知识库 API ===
   log(
     "调用外部知识库 API, recordId:",
     body.recordId,
@@ -115,7 +90,7 @@ export default async function kbQuery(c: ContextWithDb) {
 
   const traceUrl = `https://langfuse.shadow-rpa.net/project/cmjzfpet700440z07gpp9mv1u/traces?search=${traceId}`;
 
-  // === 4. 写入数据库（新增一条记录） ===
+  // === 3. 写入数据库（新增一条记录） ===
   const [inserted] = await db
     .insert(kbCache)
     .values({
